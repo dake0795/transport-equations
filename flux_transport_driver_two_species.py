@@ -121,7 +121,7 @@ def plot_comparison(x, ye, yi, label_e, label_i, ylabel, title, filename,
 L            = 1.0
 dx           = 0.005
 dt           = 1e-6
-Tmax         = 0.5
+Tmax         = 0.2
 num_snapshots = 8
 
 x = np.linspace(0, L, int(L / dx))
@@ -131,6 +131,7 @@ x = np.linspace(0, L, int(L / dx))
 # ==========================================
 initial_state_e = "supercritical"   # T_e gradient: "supercritical" or "subcritical"
 initial_state_i = "supercritical"   # T_i gradient: "supercritical" or "subcritical"
+initial_state_n = "subcritical"   # n gradient:   "supercritical" or "subcritical"
 
 # ==========================================
 # POWER BALANCE CONTROL
@@ -200,11 +201,11 @@ transport_params = {
     # --- Physics sources (T3D-like) ---
     # Bremsstrahlung: P_brem = C_brem * n_e^2 * Z_eff * sqrt(T_e_keV)
     #   C_brem = 0 disables; set ~0.03 for mild radiation at n~2, T~15 keV
-    "C_brem":     0.0,
+    "C_brem":     0.03,
     "Z_eff":      1.0,
     # Alpha heating: P_alpha = C_alpha * <sigma_v>(T_i_keV) * n_D * n_T
     #   C_alpha = 0 disables; set ~1e-3 for mild alpha heating at reactor conditions
-    "C_alpha":    0.0,
+    "C_alpha":    1e-3,
     "T_ref_keV":  10.0,   # model T=1 corresponds to T_ref_keV keV
     "n_ref_20":    1.0,   # model n=1 corresponds to n_ref_20 × 10^20 m^-3
     "Z_i":         1,
@@ -235,12 +236,14 @@ n_core   = 2.0;  n_ped   = 0.2
 #   delta  : supercritical → small (steep); subcritical → large (broad)
 x_sym_T       = 0.55
 delta_T_super = 0.20
-delta_T_sub   = 0.45
+delta_T_sub   = 0.70
 x_sym_n       = 0.80
-delta_n       = 0.25
+delta_n_super = 0.20
+delta_n_sub   = 0.70
 
 delta_Te = delta_T_super if initial_state_e == "supercritical" else delta_T_sub
 delta_Ti = delta_T_super if initial_state_i == "supercritical" else delta_T_sub
+delta_n  = delta_n_super if initial_state_n == "supercritical" else delta_n_sub
 
 T_e_init = tanh_profile(x, L, T_e_core, T_e_ped, x_sym=x_sym_T, delta=delta_Te)
 T_i_init = tanh_profile(x, L, T_i_core, T_i_ped, x_sym=x_sym_T, delta=delta_Ti)
