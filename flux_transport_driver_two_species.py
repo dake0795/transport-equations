@@ -387,6 +387,81 @@ plot_single(x, Q_ei_init, r"$Q_{ei}$",
             "03e_Qei_initial", color='C4')
 
 # ==========================================
+# Power balance enforcement (diagnostic, mirrors model logic)
+# ==========================================
+def _apply_power_balance_diag(S, flux_edge, pb_ratio):
+    """Mimic power balance enforcement from compute_rhs for diagnostics."""
+    if pb_ratio is None or pb_ratio == 0:
+        return S.copy()
+    S_out = S.copy()
+    total_S = np.trapezoid(S_out, x)
+    if heating_mode == "localized":
+        sigma = transport_params.get("edge_sigma", 0.05)
+        g_test = np.exp(-((x - L)**2) / (2 * sigma**2))
+        g_norm = np.trapezoid(g_test, x)
+        deficit = pb_ratio * flux_edge - total_S
+        return S_out + (deficit / g_norm if g_norm > 0 else 0.0) * g_test
+    else:  # global
+        if total_S > 0 and flux_edge > 0:
+            return S_out * (pb_ratio * flux_edge / total_S)
+    return S_out
+
+S_pe_enforced = _apply_power_balance_diag(S_pe_init, Q_e_init[-1],     power_balance_pe)
+S_ne_enforced = _apply_power_balance_diag(S_ne_init, Gamma_e_init[-1], power_balance_ne)
+S_pi_enforced = _apply_power_balance_diag(S_pi_init, Q_i_init[-1],     power_balance_pi)
+S_ni_enforced = _apply_power_balance_diag(S_ni_init, Gamma_i_init[-1], power_balance_ni)
+
+print(f"\n{'='*60}\nPOWER BALANCE (initial)\n{'='*60}")
+for label, S_raw, S_enf, flux_edge in [
+    ("S_pe", S_pe_init, S_pe_enforced, Q_e_init[-1]),
+    ("S_ne", S_ne_init, S_ne_enforced, Gamma_e_init[-1]),
+    ("S_pi", S_pi_init, S_pi_enforced, Q_i_init[-1]),
+    ("S_ni", S_ni_init, S_ni_enforced, Gamma_i_init[-1]),
+]:
+    raw_int = np.trapezoid(S_raw, x)
+    enf_int = np.trapezoid(S_enf, x)
+    print(f"  {label}: raw={raw_int:.4f}  enforced={enf_int:.4f}  flux_edge={flux_edge:.4f}")
+
+# 03f  Source before and after power balance
+for S_raw, S_enf, ylabel, title, filename, col in [
+    (S_pe_init, S_pe_enforced, r"$S_{p_e}(x)$",
+     r"$\mathrm{Electron\ Heat\ Source\ (raw/enforced)}$",     "03f_source_balance_pe", 'C0'),
+    (S_ne_init, S_ne_enforced, r"$S_{n_e}(x)$",
+     r"$\mathrm{Electron\ Particle\ Source\ (raw/enforced)}$", "03g_source_balance_ne", 'C0'),
+    (S_pi_init, S_pi_enforced, r"$S_{p_i}(x)$",
+     r"$\mathrm{Ion\ Heat\ Source\ (raw/enforced)}$",          "03h_source_balance_pi", 'C3'),
+    (S_ni_init, S_ni_enforced, r"$S_{n_i}(x)$",
+     r"$\mathrm{Ion\ Particle\ Source\ (raw/enforced)}$",      "03i_source_balance_ni", 'C3'),
+]:
+    fig, ax = plt.subplots()
+    ax.plot(x, S_raw, linewidth=2, label="Raw", color=col)
+    ax.plot(x, S_enf, linestyle="--", linewidth=2, label="Enforced", color=col)
+    ax.set_xlabel(r"$x$"); ax.set_ylabel(ylabel); ax.set_title(title)
+    ax.legend(); style_plot(ax); save_and_show(filename)
+
+# 03j  Flux vs enforced source
+H_pe_enf = np.cumsum(S_pe_enforced) * dx
+H_ne_enf = np.cumsum(S_ne_enforced) * dx
+H_pi_enf = np.cumsum(S_pi_enforced) * dx
+H_ni_enf = np.cumsum(S_ni_enforced) * dx
+
+for flux_f, H_enf, ylabel, title, filename, col in [
+    (Q_e_init,     H_pe_enf, r"$Q_e(x)$",
+     r"$\mathrm{Electron\ Heat\ Flux\ vs\ Enforced\ Source}$",       "03j_flux_enforced_Qe",     'C0'),
+    (Gamma_e_init, H_ne_enf, r"$\Gamma_e(x)$",
+     r"$\mathrm{Electron\ Particle\ Flux\ vs\ Enforced\ Source}$",   "03k_flux_enforced_Gammae", 'C0'),
+    (Q_i_init,     H_pi_enf, r"$Q_i(x)$",
+     r"$\mathrm{Ion\ Heat\ Flux\ vs\ Enforced\ Source}$",            "03l_flux_enforced_Qi",     'C3'),
+    (Gamma_i_init, H_ni_enf, r"$\Gamma_i(x)$",
+     r"$\mathrm{Ion\ Particle\ Flux\ vs\ Enforced\ Source}$",        "03m_flux_enforced_Gammai", 'C3'),
+]:
+    fig, ax = plt.subplots()
+    ax.plot(x_face, flux_f, label="Flux", color=col)
+    ax.plot(x, H_enf, linestyle="--", label=r"$\int_0^x S_\mathrm{enforced}\,dx'$", color=col)
+    ax.set_xlabel(r"$x$"); ax.set_ylabel(ylabel); ax.set_title(title)
+    ax.legend(); style_plot(ax); save_and_show(filename)
+
+# ==========================================
 # SOLVE
 # ==========================================
 print(f"\n{'='*60}\nSOLVING TWO-SPECIES SYSTEM\n{'='*60}\n")
