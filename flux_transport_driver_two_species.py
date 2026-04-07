@@ -563,6 +563,16 @@ S_ne_enforced = _apply_power_balance_diag(S_ne_init, Gamma_e_init[-1], power_bal
 S_pi_enforced = _apply_power_balance_diag(S_pi_init, Q_i_init[-1],     power_balance_pi)
 S_ni_enforced = _apply_power_balance_diag(S_ni_init, Gamma_i_init[-1], power_balance_ni)
 
+# In PI mode the source is not instantaneously rescaled — multiplier starts at 1.0
+if power_balance_mode == "PI":
+    S_pe_enforced = S_pe_init.copy()
+    S_ne_enforced = S_ne_init.copy()
+    S_pi_enforced = S_pi_init.copy()
+    S_ni_enforced = S_ni_init.copy()
+    _enf_label = "PI (scale=1 at t=0)"
+else:
+    _enf_label = "Enforced"
+
 print(f"\n{'='*60}\nPOWER BALANCE (initial)\n{'='*60}")
 for label, S_raw, S_enf, flux_edge in [
     ("S_pe", S_pe_init, S_pe_enforced, Q_e_init[-1]),
@@ -587,7 +597,7 @@ for S_raw, S_enf, ylabel, title, filename, col in [
 ]:
     fig, ax = plt.subplots()
     ax.plot(x, S_raw, linewidth=2, label="Raw", color=col)
-    ax.plot(x, S_enf, linestyle="--", linewidth=2, label="Enforced", color=col)
+    ax.plot(x, S_enf, linestyle="--", linewidth=2, label=_enf_label, color=col)
     ax.set_xlabel(r"$x$"); ax.set_ylabel(ylabel); ax.set_title(title)
     ax.legend(); style_plot(ax); save_and_show(filename)
 
@@ -597,20 +607,24 @@ H_ne_enf = np.cumsum(S_ne_enforced) * dx
 H_pi_enf = np.cumsum(S_pi_enforced) * dx
 H_ni_enf = np.cumsum(S_ni_enforced) * dx
 
-for flux_f, H_enf, ylabel, title, filename, col in [
+_src_label = r"$\int_0^x S_\mathrm{raw}\,dx'$" if power_balance_mode == "PI" else r"$\int_0^x S_\mathrm{enforced}\,dx'$"
+_flux_title_suffix = r"\ (PI:\ raw\ source)" if power_balance_mode == "PI" else r"\ (enforced\ source)"
+
+for flux_f, H_enf, ylabel, title_base, filename, col in [
     (Q_e_init,     H_pe_enf, r"$Q_e(x)$",
-     r"$\mathrm{Electron\ Heat\ Flux\ vs\ Enforced\ Source}$",       "03j_flux_enforced_Qe",     'C0'),
+     r"$\mathrm{Electron\ Heat\ Flux\ vs}$",       "03j_flux_enforced_Qe",     'C0'),
     (Gamma_e_init, H_ne_enf, r"$\Gamma_e(x)$",
-     r"$\mathrm{Electron\ Particle\ Flux\ vs\ Enforced\ Source}$",   "03k_flux_enforced_Gammae", 'C0'),
+     r"$\mathrm{Electron\ Particle\ Flux\ vs}$",   "03k_flux_enforced_Gammae", 'C0'),
     (Q_i_init,     H_pi_enf, r"$Q_i(x)$",
-     r"$\mathrm{Ion\ Heat\ Flux\ vs\ Enforced\ Source}$",            "03l_flux_enforced_Qi",     'C3'),
+     r"$\mathrm{Ion\ Heat\ Flux\ vs}$",            "03l_flux_enforced_Qi",     'C3'),
     (Gamma_i_init, H_ni_enf, r"$\Gamma_i(x)$",
-     r"$\mathrm{Ion\ Particle\ Flux\ vs\ Enforced\ Source}$",        "03m_flux_enforced_Gammai", 'C3'),
+     r"$\mathrm{Ion\ Particle\ Flux\ vs}$",        "03m_flux_enforced_Gammai", 'C3'),
 ]:
     fig, ax = plt.subplots()
     ax.plot(x_face, flux_f, label="Flux", color=col)
-    ax.plot(x, H_enf, linestyle="--", label=r"$\int_0^x S_\mathrm{enforced}\,dx'$", color=col)
-    ax.set_xlabel(r"$x$"); ax.set_ylabel(ylabel); ax.set_title(title)
+    ax.plot(x, H_enf, linestyle="--", label=_src_label, color=col)
+    ax.set_xlabel(r"$x$"); ax.set_ylabel(ylabel)
+    ax.set_title(title_base + _flux_title_suffix)
     ax.legend(); style_plot(ax); save_and_show(filename)
 
 # ==========================================

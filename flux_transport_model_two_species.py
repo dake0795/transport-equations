@@ -588,6 +588,29 @@ def solving_loop_two_species(
             pi_scale[name]   = 1.0
             pi_int_err[name] = 0.0
 
+    # Pre-balance: initialise pi_scale to the instantaneous power-balance
+    # ratio so the controller starts near equilibrium rather than at 1.0
+    if use_pi:
+        Q_e0, Ge0, Q_i0, Gi0, _ = compute_fluxes_two_species(
+            p_e, n_e, p_i, n_i, dx, x,
+            p_e_ped, n_e_ped, p_i_ped, n_i_ped, params)
+        init_src  = {
+            "pe": source_pe_fn(x, p_e, n_e, p_i, n_i),
+            "ne": source_ne_fn(x, p_e, n_e, p_i, n_i),
+            "pi": source_pi_fn(x, p_e, n_e, p_i, n_i),
+            "ni": source_ni_fn(x, p_e, n_e, p_i, n_i),
+        }
+        init_flux = {"pe": Q_e0[-1], "ne": Ge0[-1], "pi": Q_i0[-1], "ni": Gi0[-1]}
+        pb_ratios = {name: params.get(key_pb, 1.0)
+                     for name, _, key_pb, _, _ in ch_defs}
+        for name in ["pe", "ne", "pi", "ni"]:
+            if not pi_active.get(name):
+                continue
+            total_S0 = np.trapezoid(init_src[name], x)
+            flux0    = init_flux[name]
+            if total_S0 > 0 and flux0 > 0:
+                pi_scale[name] = pb_ratios[name] * flux0 / total_S0
+
     # Diagnostics storage (recorded at save points)
     pi_diag = {f"scale_{n}": [] for n in ["pe","ne","pi","ni"]}
     pi_diag.update({f"W_{n}": [] for n in ["pe","ne","pi","ni"]})
