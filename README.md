@@ -163,14 +163,38 @@ Each type can be set independently for T_e, T_i, and n.
 ### Power balance
 
 ```python
-power_balance_pe = 1.0    # ∫S_pe dx = ratio × Q_e_edge
-power_balance_pi = 1.0    # ∫S_pi dx = ratio × Q_i_edge
-power_balance_ne = None   # None = disabled
-power_balance_ni = None   # None = disabled
-heating_mode = "global"   # "global" or "localized"
+power_balance_mode = "PI"     # "instantaneous" or "PI"
+
+power_balance_pe = 1.0        # target ∫S_pe dx / Q_e_edge (None = disabled)
+power_balance_pi = None        # None = disabled (no external ion heat source e.g. EBW)
+power_balance_ne = None        # None = disabled
+power_balance_ni = None        # None = disabled
+heating_mode = "global"        # "global" or "localized"
 ```
 
-Set to `None` to disable power balance enforcement for a channel.
+Two enforcement modes:
+
+| Mode | Behaviour |
+|------|-----------|
+| `"instantaneous"` | Rescales source at every RHS call so ∫S dx = target × Q_edge. Instantaneous, perfect control. |
+| `"PI"` | PI controller adjusts a source multiplier each timestep based on the error between target and current stored energy ∫f dx. Physically realistic finite-timescale response. |
+
+PI controller gains (only used when `power_balance_mode = "PI"`):
+
+```python
+Kp_pe = 10.0;  Ki_pe = 50.0   # electron pressure
+Kp_ne = 10.0;  Ki_ne = 50.0   # electron density
+Kp_pi = 10.0;  Ki_pi = 50.0   # ion pressure
+Kp_ni = 10.0;  Ki_ni = 50.0   # ion density
+```
+
+The target for each PI channel is the initial stored energy `W₀ = ∫f(x,0) dx`. The multiplier evolves as:
+```
+source_scale += Kp * error + Ki * ∫error dt
+```
+Plots `14a` and `14b` show the source multiplier and stored energy vs target over time.
+
+Set any channel to `None` to disable power balance enforcement for that channel entirely.
 
 ### Core/pedestal values
 

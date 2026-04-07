@@ -549,7 +549,9 @@ def solving_loop_two_species(
         num_snapshots, params):
     """
     Evolve the two-species system from t=0 to t=Trun.
-    Returns (saved_pe, saved_ne, saved_pi, saved_ni) as (num_snapshots+1, N) arrays.
+
+    Returns (saved_pe, saved_ne, saved_pi, saved_ni, pi_diag).
+    pi_diag is a dict with PI controller diagnostics (empty if mode != "PI").
     """
     N         = len(p_e_init)
     x         = np.linspace(0, L, N)
@@ -562,23 +564,97 @@ def solving_loop_two_species(
     saved_pe, saved_ne, saved_pi, saved_ni = [], [], [], []
     save_counter = 0
 
+    # --- PI controller setup ---
+    pb_mode = params.get("power_balance_mode", "instantaneous")
+    use_pi  = (pb_mode == "PI")
+
+    # Channel definitions: (name, initial_field, pb_key, Kp_key, Ki_key)
+    ch_defs = [
+        ("pe", p_e_init, "power_balance_pe", "Kp_pe", "Ki_pe"),
+        ("ne", n_e_init, "power_balance_ne", "Kp_ne", "Ki_ne"),
+        ("pi", p_i_init, "power_balance_pi", "Kp_pi", "Ki_pi"),
+        ("ni", n_i_init, "power_balance_ni", "Kp_ni", "Ki_ni"),
+    ]
+    pi_scale   = {}   # current source multiplier per channel
+    pi_int_err = {}   # integral of error per channel
+    pi_target  = {}   # target stored quantity (= initial integral)
+    pi_active  = {}   # whether PI is active for this channel
+
+    for name, f_init, key_pb, _, _ in ch_defs:
+        pb = params.get(key_pb, None)
+        pi_active[name] = (use_pi and pb is not None)
+        if pi_active[name]:
+            pi_target[name]  = np.trapezoid(f_init, x)
+            pi_scale[name]   = 1.0
+            pi_int_err[name] = 0.0
+
+    # Diagnostics storage (recorded at save points)
+    pi_diag = {f"scale_{n}": [] for n in ["pe","ne","pi","ni"]}
+    pi_diag.update({f"W_{n}": [] for n in ["pe","ne","pi","ni"]})
+    if not use_pi:
+        pi_diag = {}
+
+    # When using PI, disable instantaneous power balance in the RHS
+    if use_pi:
+        params = dict(params)  # shallow copy to avoid mutating original
+        for key_pb in ["power_balance_pe","power_balance_ne",
+                       "power_balance_pi","power_balance_ni"]:
+            params[key_pb] = None  # disable instantaneous enforcement
+
     for i in range(num_steps + 1):
         if i == save_idx[save_counter]:
             saved_pe.append(p_e.copy()); saved_ne.append(n_e.copy())
             saved_pi.append(p_i.copy()); saved_ni.append(n_i.copy())
+            # Record PI diagnostics at save points
+            if use_pi:
+                fields = {"pe": p_e, "ne": n_e, "pi": p_i, "ni": n_i}
+                for name in ["pe","ne","pi","ni"]:
+                    pi_diag[f"scale_{name}"].append(pi_scale.get(name, 1.0))
+                    pi_diag[f"W_{name}"].append(np.trapezoid(fields[name], x))
             save_counter = min(save_counter + 1, len(save_idx) - 1)
+
+        # --- PI controller: update source multipliers ---
+        if use_pi:
+            fields = {"pe": p_e, "ne": n_e, "pi": p_i, "ni": n_i}
+            for name, _, _, key_Kp, key_Ki in ch_defs:
+                if not pi_active[name]:
+                    continue
+                W_now = np.trapezoid(fields[name], x)
+                error = pi_target[name] - W_now
+                Kp = params.get(key_Kp, 10.0)
+                Ki = params.get(key_Ki, 50.0)
+                pi_int_err[name] += error * dt
+                pi_scale[name] = 1.0 + Kp * error + Ki * pi_int_err[name]
+                pi_scale[name] = max(pi_scale[name], 0.0)  # clamp non-negative
+
+        # --- Build scaled source functions ---
+        if use_pi:
+            s_pe = pi_scale.get("pe", 1.0)
+            s_ne = pi_scale.get("ne", 1.0)
+            s_pi = pi_scale.get("pi", 1.0)
+            s_ni = pi_scale.get("ni", 1.0)
+            def src_pe_s(x, pe, ne, pi_, ni, _s=s_pe): return _s * source_pe_fn(x, pe, ne, pi_, ni)
+            def src_ne_s(x, pe, ne, pi_, ni, _s=s_ne): return _s * source_ne_fn(x, pe, ne, pi_, ni)
+            def src_pi_s(x, pe, ne, pi_, ni, _s=s_pi): return _s * source_pi_fn(x, pe, ne, pi_, ni)
+            def src_ni_s(x, pe, ne, pi_, ni, _s=s_ni): return _s * source_ni_fn(x, pe, ne, pi_, ni)
+            src_fns = (src_pe_s, src_ne_s, src_pi_s, src_ni_s)
+        else:
+            src_fns = (source_pe_fn, source_ne_fn, source_pi_fn, source_ni_fn)
 
         p_e, n_e, p_i, n_i = step_two_species(
             p_e, n_e, p_i, n_i, dt, dx, x,
             p_e_ped, n_e_ped, p_i_ped, n_i_ped,
-            source_pe_fn, source_ne_fn, source_pi_fn, source_ni_fn, params)
+            *src_fns, params)
 
         if i % 20000 == 0:
             T_e = p_e / np.maximum(n_e, 1e-10)
             T_i = p_i / np.maximum(n_i, 1e-10)
             kap_Te = np.max(-np.gradient(np.log(np.maximum(T_e, 1e-10)), dx))
             kap_Ti = np.max(-np.gradient(np.log(np.maximum(T_i, 1e-10)), dx))
-            print(f"Step {i:6d} | max κ_Te = {kap_Te:.4f} | max κ_Ti = {kap_Ti:.4f}")
+            si = ""
+            if use_pi and pi_active.get("pe"):
+                si = f" | S_pe x{pi_scale['pe']:.3f}"
+            print(f"Step {i:6d} | max kap_Te = {kap_Te:.4f} | max kap_Ti = {kap_Ti:.4f}{si}")
 
     return (np.array(saved_pe), np.array(saved_ne),
-            np.array(saved_pi), np.array(saved_ni))
+            np.array(saved_pi), np.array(saved_ni), pi_diag)

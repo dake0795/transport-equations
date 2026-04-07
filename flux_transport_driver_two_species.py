@@ -186,11 +186,26 @@ initial_state_n = "subcritical"   # n gradient:   "supercritical" or "subcritica
 # ==========================================
 # POWER BALANCE CONTROL
 # ==========================================
-power_balance_pe = 1.0   # ∫S_pe dx = ratio * Q_e_edge
-power_balance_pi = None  # None = disabled (no external ion heat source)
-power_balance_ne = None   # ∫S_ne dx = ratio * Γ_e_edge
-power_balance_ni = None   # ∫S_ni dx = ratio * Γ_i_edge
+# Mode: "instantaneous" — rescale source each RHS call (original behaviour)
+#       "PI"            — PI controller adjusts source multiplier over time
+#       None per-channel disables that channel's enforcement
+power_balance_mode = "PI"   # "instantaneous" or "PI"
+
+power_balance_pe = 1.0   # target ratio ∫S_pe dx / Q_e_edge (None = disabled)
+power_balance_pi = None   # None = disabled (no external ion heat source)
+power_balance_ne = None   # target ratio ∫S_ne dx / Γ_e_edge (None = disabled)
+power_balance_ni = None   # None = disabled
 heating_mode     = "global"   # "global" or "localized"
+
+# --- PI controller gains (only used when power_balance_mode = "PI") ---
+Kp_pe = 10.0     # proportional gain for electron pressure
+Ki_pe = 50.0     # integral gain for electron pressure
+Kp_ne = 10.0     # proportional gain for electron density
+Ki_ne = 50.0     # integral gain for electron density
+Kp_pi = 10.0     # proportional gain for ion pressure
+Ki_pi = 50.0     # integral gain for ion pressure
+Kp_ni = 10.0     # proportional gain for ion density
+Ki_ni = 50.0     # integral gain for ion density
 
 # ==========================================
 # Transport parameters
@@ -242,11 +257,17 @@ transport_params = {
 
     # --- Power balance ---
     "heating_mode":    heating_mode,
+    "power_balance_mode": power_balance_mode,
     "power_balance_pe": power_balance_pe,
     "power_balance_pi": power_balance_pi,
     "power_balance_ne": power_balance_ne,
     "power_balance_ni": power_balance_ni,
     "edge_sigma":       0.05,
+    # PI controller gains (used only when power_balance_mode = "PI")
+    "Kp_pe": Kp_pe, "Ki_pe": Ki_pe,
+    "Kp_ne": Kp_ne, "Ki_ne": Ki_ne,
+    "Kp_pi": Kp_pi, "Ki_pi": Ki_pi,
+    "Kp_ni": Kp_ni, "Ki_ni": Ki_ni,
 
     # --- Physics sources (T3D-like) ---
     # Bremsstrahlung: P_brem = C_brem * n_e^2 * Z_eff * sqrt(T_e_keV)
@@ -597,7 +618,7 @@ for flux_f, H_enf, ylabel, title, filename, col in [
 # ==========================================
 print(f"\n{'='*60}\nSOLVING TWO-SPECIES SYSTEM\n{'='*60}\n")
 
-saved_pe, saved_ne, saved_pi, saved_ni = solving_loop_two_species(
+saved_pe, saved_ne, saved_pi, saved_ni, pi_diag = solving_loop_two_species(
     p_e_init, n_e_init, p_i_init, n_i_init,
     dt, dx, Tmax, L,
     p_e_ped, n_e_ped, p_i_ped, n_i_ped,
@@ -913,3 +934,39 @@ print(f"Final ∫T_e dx  = {total_Te_t[-1]:.4f}")
 print(f"Final ∫T_i dx  = {total_Ti_t[-1]:.4f}")
 print(f"Final ∫|Q_ei|dx = {integral_Qei_t[-1]:.4f}")
 print(f"Plots saved to 'plots/' directory\n")
+
+# ==========================================
+# PI CONTROLLER DIAGNOSTICS
+# ==========================================
+if pi_diag:
+    # Plot source multiplier over time
+    fig, axes = plt.subplots(2, 1, sharex=True)
+    for name, col, label, ax in [
+        ("pe", 'C0', r"$S_{p_e}$ scale", axes[0]),
+        ("ne", 'C2', r"$S_{n_e}$ scale", axes[1]),
+    ]:
+        if any(s != 1.0 for s in pi_diag[f"scale_{name}"]):
+            ax.plot(times, pi_diag[f"scale_{name}"], color=col, linewidth=2)
+            ax.axhline(1.0, linestyle="--", color="k", linewidth=1, alpha=0.5)
+            ax.set_ylabel(label)
+    axes[-1].set_xlabel(r"$t$")
+    axes[0].set_title(r"PI Controller: Source Multiplier vs Time")
+    style_plot(axes[0]); style_plot(axes[1])
+    save_and_show("14a_PI_source_scale")
+
+    # Plot stored energy vs target
+    fig, axes = plt.subplots(2, 1, sharex=True)
+    for name, col, label, tgt, ax in [
+        ("pe", 'C0', r"$\int p_e\,dx$", None, axes[0]),
+        ("ne", 'C2', r"$\int n_e\,dx$", None, axes[1]),
+    ]:
+        W = pi_diag[f"W_{name}"]
+        W0 = W[0]
+        ax.plot(times, W, color=col, linewidth=2, label="actual")
+        ax.axhline(W0, linestyle="--", color=col, linewidth=1.5, alpha=0.7, label="target")
+        ax.set_ylabel(label)
+        ax.legend(fontsize=8)
+    axes[-1].set_xlabel(r"$t$")
+    axes[0].set_title(r"PI Controller: Stored Energy vs Target")
+    style_plot(axes[0]); style_plot(axes[1])
+    save_and_show("14b_PI_stored_energy")
