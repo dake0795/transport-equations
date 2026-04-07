@@ -207,7 +207,7 @@ def _apply_bc_to_profile(p_bc, n_bc, dx, core_p, edge_p, core_n, edge_n):
 
 def compute_rhs_coupled(p, n, dx, x, p_ped, n_ped, source_p_function, source_n_function, params):
     """
-    Compute RHS for coupled density and pressure evolution.
+    Compute RHS for coupled density and pressure evolution with dual power balance.
 
     dp/dt = -∇·Q + S_p
     dn/dt = -∇·Γ + S_n
@@ -241,9 +241,8 @@ def compute_rhs_coupled(p, n, dx, x, p_ped, n_ped, source_p_function, source_n_f
     g_n = -(n_bc[1:] - n_bc[:-1]) / dx
     Gamma_face = particle_flux_function(g_n, x_face, params)
 
-    # Add convection: V * n (if convection velocity is set)
     V_n = params.get("V_n", 0.0)
-    Gamma_face = Gamma_face + V_n * n_bc[1:]  # convection at faces
+    Gamma_face = Gamma_face + V_n * n_bc[1:]
 
     # Divergence of particle flux
     dGammadx = np.zeros_like(n_bc)
@@ -263,36 +262,75 @@ def compute_rhs_coupled(p, n, dx, x, p_ped, n_ped, source_p_function, source_n_f
     S_p = source_p_function(x, p_bc, n_bc)
     S_n = source_n_function(x, p_bc, n_bc)
 
-    # Power balance enforcement (pressure)
+    # ----- Power balance enforcement (dual) -----
     heating_mode = params.get("heating_mode", "global")
-    power_balance = params.get("power_balance", None)
+    power_balance_mode = params.get("power_balance_mode", "separate")
+    power_balance_p = params.get("power_balance", 1.0)
+    power_balance_n = params.get("power_balance_n", 1.0)
+    L = x[-1]
+    edge_sigma = params.get("edge_sigma", 0.05)
 
-    if heating_mode == "localized" and power_balance is not None:
+    if heating_mode == "localized":
+        # Edge-localized Gaussian heating (pressure)
         Q_edge = Q_face[-1]
         total_S_p = np.trapezoid(S_p, x)
-        required_integral = power_balance * Q_edge
-        deficit = required_integral - total_S_p
+        required_integral_p = power_balance_p * Q_edge
+        deficit_p = required_integral_p - total_S_p
 
-        L = x[-1]
-        edge_sigma = params.get("edge_sigma", 0.05)
         gaussian_test = np.exp(-((x - L)**2) / (2 * edge_sigma**2))
         gaussian_norm = np.trapezoid(gaussian_test, x)
 
         if gaussian_norm > 0:
-            edge_amp = deficit / gaussian_norm
+            edge_amp_p = deficit_p / gaussian_norm
         else:
-            edge_amp = 0
+            edge_amp_p = 0
 
-        gaussian_edge = edge_amp * np.exp(-((x - L)**2) / (2 * edge_sigma**2))
-        S_p = S_p + gaussian_edge
+        gaussian_edge_p = edge_amp_p * np.exp(-((x - L)**2) / (2 * edge_sigma**2))
+        S_p = S_p + gaussian_edge_p
 
-    elif heating_mode == "global" and power_balance is not None:
+        # Edge-localized Gaussian heating (density)
+        Gamma_edge = Gamma_face[-1]
+        total_S_n = np.trapezoid(S_n, x)
+        required_integral_n = power_balance_n * Gamma_edge
+        deficit_n = required_integral_n - total_S_n
+
+        if gaussian_norm > 0:
+            edge_amp_n = deficit_n / gaussian_norm
+        else:
+            edge_amp_n = 0
+
+        gaussian_edge_n = edge_amp_n * np.exp(-((x - L)**2) / (2 * edge_sigma**2))
+        S_n = S_n + gaussian_edge_n
+
+    elif heating_mode == "global":
+        # Global power balance enforcement
         Q_edge = Q_face[-1]
+        Gamma_edge = Gamma_face[-1]
         total_S_p = np.trapezoid(S_p, x)
-        if total_S_p > 0 and Q_edge > 0:
-            S_p = S_p * (power_balance * Q_edge / total_S_p)
+        total_S_n = np.trapezoid(S_n, x)
 
-    # Hyperviscosity (pressure only for now)
+        if power_balance_mode == "separate":
+            # Scale each independently
+            if total_S_p > 0 and Q_edge > 0:
+                S_p = S_p * (power_balance_p * Q_edge / total_S_p)
+            if total_S_n > 0 and Gamma_edge > 0:
+                S_n = S_n * (power_balance_n * Gamma_edge / total_S_n)
+
+        elif power_balance_mode == "coupled_to_p":
+            # Scale density source to match pressure balance
+            if total_S_p > 0 and Q_edge > 0:
+                S_p = S_p * (power_balance_p * Q_edge / total_S_p)
+            if total_S_n > 0 and Gamma_edge > 0:
+                S_n = S_n * (power_balance_p * Q_edge / total_S_n)
+
+        elif power_balance_mode == "coupled_to_n":
+            # Scale pressure source to match density balance
+            if total_S_n > 0 and Gamma_edge > 0:
+                S_n = S_n * (power_balance_n * Gamma_edge / total_S_n)
+            if total_S_p > 0 and Q_edge > 0:
+                S_p = S_p * (power_balance_n * Gamma_edge / total_S_p)
+
+    # Hyperviscosity (pressure only)
     nu4 = params.get("nu4", 0.0)
     d4p = np.zeros_like(p_bc)
 
