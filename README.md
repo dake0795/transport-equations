@@ -162,6 +162,10 @@ Each type can be set independently for T_e, T_i, and n.
 
 ### Power balance
 
+**Single-field and coupled drivers** enforce power balance inside `compute_rhs`, which is called at every RHS evaluation. With RK4 this means the source is rescaled **4 times per timestep** (once per stage), using the intermediate state at each stage. This is instantaneous perfect control — there is no physical response timescale.
+
+**Two-species driver** offers two modes:
+
 ```python
 power_balance_mode = "PI"     # "instantaneous" or "PI"
 
@@ -172,12 +176,23 @@ power_balance_ni = None        # None = disabled
 heating_mode = "global"        # "global" or "localized"
 ```
 
-Two enforcement modes:
-
 | Mode | Behaviour |
 |------|-----------|
-| `"instantaneous"` | Rescales source at every RHS call so ∫S dx = target × Q_edge. Instantaneous, perfect control. |
-| `"PI"` | PI controller adjusts a source multiplier each timestep based on the error between target and current stored energy ∫f dx. Physically realistic finite-timescale response. |
+| `"instantaneous"` | Rescales source at every RHS call (same as single-field). Instantaneous, perfect control — unphysical for studying transient dynamics. |
+| `"PI"` | A PI controller adjusts a time-dependent source multiplier once per timestep. The source shape is fixed; only its amplitude changes. Physically realistic: the external heating system responds on a finite timescale. |
+
+#### PI controller response time
+
+The controller maintains one multiplier per active channel, updated as:
+```
+error(t)       = W₀ - W(t)          # W = ∫f dx, W₀ = initial value
+integral_error += error * dt
+source_scale    = 1 + Kp*error + Ki*integral_error   (clamped ≥ 0)
+```
+
+The response timescale is approximately `τ_response ~ 1/Kp`. With `Kp=10` and a timestep `dt=1e-6`, the controller reacts over ~0.1 time units. `Ki` eliminates steady-state offset — without it the multiplier would settle at a value slightly away from 1.0 when physics sources (bremsstrahlung, alpha heating) are active. Larger `Kp`/`Ki` → faster response but risk oscillation; smaller → slower, smoother.
+
+The target `W₀` is the **initial** stored energy, so the controller tries to maintain the t=0 integrated pressure/density against any perturbation including time-varying physics sources.
 
 PI controller gains (only used when `power_balance_mode = "PI"`):
 
@@ -188,13 +203,7 @@ Kp_pi = 10.0;  Ki_pi = 50.0   # ion pressure
 Kp_ni = 10.0;  Ki_ni = 50.0   # ion density
 ```
 
-The target for each PI channel is the initial stored energy `W₀ = ∫f(x,0) dx`. The multiplier evolves as:
-```
-source_scale += Kp * error + Ki * ∫error dt
-```
-Plots `14a` and `14b` show the source multiplier and stored energy vs target over time.
-
-Set any channel to `None` to disable power balance enforcement for that channel entirely.
+Set any channel to `None` to disable power balance enforcement entirely for that channel.
 
 ### Core/pedestal values
 
@@ -239,19 +248,82 @@ The active model per region is selected via `flux_models = ["nl"]` (list of regi
 
 ## Diagnostic plots
 
-All drivers produce numbered PDF plots saved to `two_species_plots/`, `coupled_plots/`, or `plots/`:
+Plots are saved as PDFs to `plots/` (single-field), `coupled_plots/` (coupled), or `two_species_plots/` (two-species).
 
-- **01x**: Initial profiles (T, n, p)
-- **02x**: Initial gradients (κ or g) with critical threshold lines
-- **02c–e** (two-species): Profile + gradient with supercritical region shading
-- **03x**: Flux vs cumulative source, flux vs enforced source, source before/after power balance
-- **04x**: Temperature/pressure evolution snapshots
-- **05x**: Density evolution snapshots
-- **06x**: Gradient heatmaps
-- **07x**: Integrated quantities over time
-- **08x**: Edge fluxes over time
-- **09x**: Gradient evolution at tracked points
-- **10x**: Max gradient over time with critical threshold
-- **11x**: Gradient evolution heatmaps
-- **12x**: Flux balance at final snapshots
-- **13x**: Final state profiles
+### Single-field driver
+
+| Plot | Description |
+|------|-------------|
+| `01` | Initial pressure profile with supercritical region highlighted in red |
+| `02` | Initial gradient `g = -dp/dx` with `g_crit` dashed line |
+| `03` | Initial flux `Q(x)` overlaid with cumulative source `∫S dx` |
+| `03b` | Same after power balance enforcement |
+| `03c` | Source before and after power balance rescaling |
+| `05` | Pressure evolution snapshots |
+| `06` | Total integrated pressure `∫p dx` vs time |
+| `07` | Gradient evolution at tracked x locations |
+| `08` | Gradient heatmap `g(x,t)` |
+| `09` | Power imbalance (edge flux − total heating) vs time |
+| `10` | Local flux and source vs time at tracked x locations |
+| `11` | Pressure heatmap `p(x,t)` |
+| `12` | Max gradient and its x location vs time |
+| `13` | Edge gradient and edge source vs time |
+| `14` | Flux balance snapshots (Q vs ∫S dx) at final timesteps |
+| `15` | Effective diffusivity `χ_eff = dQ/dg` at final state |
+
+### Two-species driver
+
+#### Initial state (pre-solve)
+
+| Plot | Description |
+|------|-------------|
+| `01a` | T_e and T_i overlaid |
+| `01b` | Density n |
+| `01c` | Pressures p_e and p_i overlaid |
+| `02a` | Log-gradient κ_Te and κ_Ti with κ_crit lines |
+| `02b` | Log-gradient κ_n with κ_crit line |
+| `02c` | T_e profile with supercritical region shaded (where κ_Te > κ_crit) |
+| `02d` | T_i profile with supercritical region shaded |
+| `02e` | n profile with supercritical region shaded |
+| `03a–e` | Flux vs cumulative source for each channel (Q_e, Γ_e, Q_i, Γ_i) |
+| `03f–i` | Raw vs scaled source for each channel |
+| `03j–m` | Flux vs enforced cumulative source for each channel |
+
+#### Evolution
+
+| Plot | Description |
+|------|-------------|
+| `04a` | T_e snapshots |
+| `04b` | T_i snapshots |
+| `04c` | p_e snapshots |
+| `04d` | p_i snapshots |
+| `05a` | n_e snapshots |
+| `05b` | n_i snapshots |
+| `06a` | κ_Te heatmap `κ_Te(x,t)` |
+| `06b` | κ_Ti heatmap |
+| `06c` | κ_n heatmap |
+| `07a` | Integrated p_e, p_i, n_e, n_i vs time |
+| `07b` | Integrated T_e and T_i vs time |
+| `08a` | Edge heat fluxes Q_e, Q_i vs time |
+| `08b` | Edge particle fluxes Γ_e, Γ_i vs time |
+| `09a` | κ_Te evolution at tracked x points |
+| `09b` | κ_Ti evolution at tracked x points |
+| `09c` | κ_n evolution at tracked x points |
+| `10a` | Max κ_Te and κ_Ti vs time with κ_crit lines |
+| `10b` | Max κ_n vs time with κ_crit line |
+| `11a` | κ_Te heatmap (full time range) |
+| `11b` | κ_Ti heatmap |
+
+#### Final state and diagnostics
+
+| Plot | Description |
+|------|-------------|
+| `12a` | Flux balance Q_e vs ∫S_pe dx at final snapshots |
+| `12b` | Flux balance Γ_e vs ∫S_ne dx |
+| `13a` | Effective diffusivity χ_eff,e at final state |
+| `13b` | Effective diffusivity χ_eff,i at final state |
+| `14` | Combined final state: T_e, T_i, n_e, Q_ei on shared axes |
+| `14a` | PI controller source multiplier vs time (one line per active channel) |
+| `14b` | Stored energy W = ∫f dx vs PI target W₀ for each active channel |
+
+Plots `14a` and `14b` only appear when `power_balance_mode = "PI"`. They show whether the controller has converged (multiplier → 1) and how quickly the stored energy tracks the target.
