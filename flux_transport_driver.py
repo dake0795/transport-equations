@@ -40,6 +40,7 @@ def save_and_show(filename):
         os.makedirs(plots_dir)
     filepath = os.path.join(plots_dir, f"{filename}.pdf")
     plt.savefig(filepath, format="pdf", bbox_inches="tight")
+    print(f"Saved: {filepath}")
     plt.show()
 
 # ==========================================
