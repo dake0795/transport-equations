@@ -86,7 +86,7 @@ x = np.linspace(0, L, int(L/dx))
 initial_state_mode = "separate"
 
 initial_state_p = "supercritical"   # "supercritical" or "subcritical"
-initial_state_n = "supercritical"   # "supercritical" or "subcritical"
+initial_state_n = "subcritical"   # "supercritical" or "subcritical"
 
 # ==========================================
 # POWER BALANCE CONTROL
@@ -97,7 +97,7 @@ initial_state_n = "supercritical"   # "supercritical" or "subcritical"
 power_balance_mode = "separate"
 
 power_balance_p = 1.0   # ∫S_p dx = ratio * Q_edge
-power_balance_n = 1.0   # ∫S_n dx = ratio * Γ_edge
+power_balance_n = 0.8   # ∫S_n dx = ratio * Γ_edge
 
 heating_mode = "global"  # "global" or "localized"
 
@@ -149,7 +149,7 @@ g_crit_n = g_c_n_val / 2.0
 p_core = 2.0;  p_ped = 1.0
 n_core = 1.0;  n_ped = 0.5
 m_p = 2   # shape exponent for pressure
-m_n = 3   # shape exponent for density (different → T = p/n has a gradient)
+m_n = 2   # shape exponent for density (different → T = p/n has a gradient)
 
 def base_profile(x, m):
     return 1.0 - (x/L)**m
@@ -552,9 +552,9 @@ for saved, source_fn, g_crit_val, ylabel, title, filename, col in [
 # ==========================================
 for saved, flux_fn, source_fn, flux_label, title_prefix, prefix, col in [
     (saved_p,      lambda p, n: heat_flux_function(-(p[1:]-p[:-1])/dx, x_face, transport_params),
-                   lambda p, n: source_p(x, p, n), r"$Q(x)$",     r"$\mathrm{Heat}$",     "12a_flux_balance_p", 'C0'),
+                   lambda p, n: source_p(x, p, n), r"$Q(x)$",     "Heat",     "12a_flux_balance_p", 'C0'),
     (saved_n,      lambda p, n: particle_flux_function(-(n[1:]-n[:-1])/dx, x_face, transport_params),
-                   lambda p, n: source_n(x, p, n), r"$\Gamma(x)$", r"$\mathrm{Particle}$", "12b_flux_balance_n", 'C1'),
+                   lambda p, n: source_n(x, p, n), r"$\Gamma(x)$", "Particle", "12b_flux_balance_n", 'C1'),
 ]:
     for snap_idx in [-2, -1]:
         p_snap = saved_p[snap_idx]; n_snap = saved_n[snap_idx]
