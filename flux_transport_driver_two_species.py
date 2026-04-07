@@ -193,19 +193,19 @@ power_balance_mode = "PI"   # "instantaneous" or "PI"
 
 power_balance_pe = 1.0   # target ratio ∫S_pe dx / Q_e_edge (None = disabled)
 power_balance_pi = None   # None = disabled (no external ion heat source)
-power_balance_ne = None   # target ratio ∫S_ne dx / Γ_e_edge (None = disabled)
-power_balance_ni = None   # None = disabled
+power_balance_ne = 1   # target ratio ∫S_ne dx / Γ_e_edge (None = disabled)
+power_balance_ni = 1   # None = disabled
 heating_mode     = "global"   # "global" or "localized"
 
 # --- PI controller gains (only used when power_balance_mode = "PI") ---
-Kp_pe = 10.0     # proportional gain for electron pressure
-Ki_pe = 50.0     # integral gain for electron pressure
-Kp_ne = 10.0     # proportional gain for electron density
-Ki_ne = 50.0     # integral gain for electron density
-Kp_pi = 10.0     # proportional gain for ion pressure
-Ki_pi = 50.0     # integral gain for ion pressure
-Kp_ni = 10.0     # proportional gain for ion density
-Ki_ni = 50.0     # integral gain for ion density
+Kp_pe = 1.0      # proportional gain for electron pressure
+Ki_pe = 5.0      # integral gain for electron pressure
+Kp_ne = 1.0      # proportional gain for electron density
+Ki_ne = 5.0      # integral gain for electron density
+Kp_pi = 1.0      # proportional gain for ion pressure
+Ki_pi = 5.0      # integral gain for ion pressure
+Kp_ni = 1.0      # proportional gain for ion density
+Ki_ni = 5.0      # integral gain for ion density
 
 # ==========================================
 # Transport parameters
