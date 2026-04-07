@@ -295,4 +295,75 @@ ax.legend()
 style_plot(ax)
 save_and_show("09_temperature_profile")
 
+# ==========================================
+# FINAL STATE PLOTS
+# ==========================================
+
+print("\n" + "="*60)
+print("FINAL STATE (at t={:.3f})".format(times[-1]))
+print("="*60 + "\n")
+
+p_final = saved_p[-1]
+n_final = saved_n[-1]
+T_final = p_final / (n_final + 1e-10)
+
+# Final pressure profile
+fig, ax = plt.subplots()
+ax.plot(x, p_final, linewidth=2.5, color='C0')
+ax.fill_between(x, 0, p_final, alpha=0.3, color='C0')
+ax.set_xlabel(r"$x$")
+ax.set_ylabel(r"$p(x)$")
+ax.set_title(rf"$\mathrm{{Final\ Pressure\ Profile\ (t={times[-1]:.3f})}}$")
+style_plot(ax)
+save_and_show("10_final_pressure")
+
+# Final density profile
+fig, ax = plt.subplots()
+ax.plot(x, n_final, linewidth=2.5, color='C1')
+ax.fill_between(x, 0, n_final, alpha=0.3, color='C1')
+ax.set_xlabel(r"$x$")
+ax.set_ylabel(r"$n(x)$")
+ax.set_title(rf"$\mathrm{{Final\ Density\ Profile\ (t={times[-1]:.3f})}}$")
+style_plot(ax)
+save_and_show("11_final_density")
+
+# Final temperature profile
+fig, ax = plt.subplots()
+ax.plot(x, T_final, linewidth=2.5, color='C2')
+ax.fill_between(x, 0, T_final, alpha=0.3, color='C2')
+ax.set_xlabel(r"$x$")
+ax.set_ylabel(r"$T(x) = p/n$")
+ax.set_title(rf"$\mathrm{{Final\ Temperature\ Profile\ (t={times[-1]:.3f})}}$")
+style_plot(ax)
+save_and_show("12_final_temperature")
+
+# All three on same plot for comparison
+fig, ax = plt.subplots()
+ax_n = ax.twinx()
+ax_T = ax.twinx()
+ax_T.spines['right'].set_position(('outward', 60))
+
+p_line = ax.plot(x, p_final, linewidth=2, label=r"$p$", color='C0')
+n_line = ax_n.plot(x, n_final, linewidth=2, label=r"$n$", color='C1')
+T_line = ax_T.plot(x, T_final, linewidth=2, label=r"$T=p/n$", color='C2')
+
+ax.set_xlabel(r"$x$")
+ax.set_ylabel(r"$p(x)$", color='C0')
+ax_n.set_ylabel(r"$n(x)$", color='C1')
+ax_T.set_ylabel(r"$T(x)$", color='C2')
+
+ax.tick_params(axis='y', labelcolor='C0')
+ax_n.tick_params(axis='y', labelcolor='C1')
+ax_T.tick_params(axis='y', labelcolor='C2')
+
+ax.set_title(rf"$\mathrm{{Final\ State\ (t={times[-1]:.3f})}}$")
+
+# Combined legend
+lines = p_line + n_line + T_line
+labels = [l.get_label() for l in lines]
+ax.legend(lines, labels, loc='upper right')
+
+style_plot(ax)
+save_and_show("13_final_state_combined")
+
 print("\nDone!")
