@@ -61,6 +61,16 @@ START_ON = "supercritical"
 branch_label = START_ON
 
 # ==========================================
+# Power balance mode
+# ==========================================
+# "continuous"   : rescale source at every RHS call (original behaviour,
+#                  4x per timestep with RK4 — artificially pins ∫p dx)
+# "initial_only" : scale source once at t=0 to match initial edge flux,
+#                  then fix amplitude — system evolves freely thereafter
+# "free"         : no power balance enforcement at all
+power_balance_mode = "continuous"
+
+# ==========================================
 # Feedback
 # ==========================================
 alpha = 0.1
@@ -365,6 +375,51 @@ save_and_show("03c_source_comparison")
 # ==========================================
 # Solve
 # ==========================================
+
+# --- Power balance mode pre-processing ---
+solve_params = dict(transport_params)   # copy so we don't mutate
+
+if power_balance_mode == "continuous":
+    # Default: enforcement inside every RHS call — no changes needed
+    source_fn = source
+
+elif power_balance_mode == "initial_only":
+    # Compute scale factor once from initial state, then fix it
+    pb_ratio     = transport_params.get("power_balance", 1.0)
+    heating_mode_str = transport_params.get("heating_mode", "global")
+    total_S0     = np.trapezoid(source(x, p_init), x)
+    Q_edge0      = Q_face_init[-1]
+
+    if heating_mode_str == "global" and total_S0 > 0 and Q_edge0 > 0:
+        scale_0 = pb_ratio * Q_edge0 / total_S0
+        def source_fn(x, p, _s=scale_0): return _s * source(x, p)
+        print(f"[initial_only] Source scale fixed at {scale_0:.4f} (t=0)")
+    elif heating_mode_str == "localized":
+        # Add a fixed edge Gaussian deficit computed from initial state
+        deficit0   = pb_ratio * Q_edge0 - total_S0
+        edge_sigma = transport_params.get("edge_sigma", 0.05)
+        g_test     = np.exp(-((x - L)**2) / (2 * edge_sigma**2))
+        g_norm     = np.trapezoid(g_test, x)
+        edge_amp   = deficit0 / g_norm if g_norm > 0 else 0.0
+        edge_gauss = edge_amp * g_test
+        def source_fn(x, p, _ea=edge_amp, _es=edge_sigma, _L=L):
+            return source(x, p) + _ea * np.exp(-((x - _L)**2) / (2 * _es**2))
+        print(f"[initial_only] Fixed edge Gaussian amplitude = {edge_amp:.4f} (t=0)")
+    else:
+        source_fn = source
+        print("[initial_only] Could not scale source (zero source or flux)")
+
+    # Disable continuous enforcement in RHS
+    solve_params["power_balance"] = None
+
+elif power_balance_mode == "free":
+    source_fn = source
+    solve_params["power_balance"] = None
+    print("[free] No power balance enforcement")
+
+else:
+    raise ValueError(f"Unknown power_balance_mode '{power_balance_mode}'")
+
 saved_p = solving_loop(
     p_init,
     dt,
@@ -372,9 +427,9 @@ saved_p = solving_loop(
     T,
     L,
     p_ped,
-    source,
+    source_fn,
     num_snapshots,
-    transport_params
+    solve_params
 )
 
 times = np.linspace(0, T, len(saved_p))
@@ -392,7 +447,7 @@ for p in saved_p:
     p_x = np.gradient(p, dx)
     Q = flux_function(p_x,x, transport_params)
     edge_flux_time.append(Q[-1])
-    total_heating_time.append(np.trapezoid(source(x, p), x))
+    total_heating_time.append(np.trapezoid(source_fn(x, p), x))
     max_gradient_time.append(np.max(-p_x))
 
 total_pressure_time = np.array(total_pressure_time)
@@ -547,7 +602,7 @@ if extra_plots:
             p_x = np.gradient(p, dx)
             Q = flux_function(p_x, x, transport_params)
             Q_local.append(Q[idx])
-            S_local.append(source(x, p)[idx])
+            S_local.append(source_fn(x, p)[idx])
 
         ax.plot(times, Q_local,
                 label=f"Q @ x={x[idx]:.2f}",
@@ -620,7 +675,7 @@ if extra_plots:
     # 6. Edge gradient vs source
     # ==========================================================
     edge_gradient = [-np.gradient(p, dx)[-1] for p in saved_p]
-    edge_source = [source(x, p)[-1] for p in saved_p]
+    edge_source = [source_fn(x, p)[-1] for p in saved_p]
 
     fig, ax = plt.subplots()
     ax.plot(times, edge_gradient, label="g at edge")
@@ -642,7 +697,7 @@ if extra_plots:
         Q = flux_function(-p_x, x, transport_params)
 
         F = np.array([
-            np.trapezoid(source(x[:j+1], p[:j+1]), x[:j+1])
+            np.trapezoid(source_fn(x[:j+1], p[:j+1]), x[:j+1])
             for j in range(len(x))
         ])
 
