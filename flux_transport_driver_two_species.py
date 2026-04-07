@@ -230,6 +230,7 @@ g_crit_n = g_c_n_e / 2.0
 T_e_core = 2.0;  T_e_ped = 0.5
 T_i_core = 1.5;  T_i_ped = 0.4
 n_core   = 2.0;  n_ped   = 0.2
+n_ped_sub = 1.2   # flatter density for subcritical (ln(2.0/1.2) ≈ 0.51 < κ_crit=1.0)
 
 # Tanh-based profiles: flat core + smooth drop to pedestal, matching typical tokamak shape
 #   x_sym  : normalised transition midpoint  (r/a)
@@ -244,16 +245,17 @@ delta_n_sub   = 0.70
 delta_Te = delta_T_super if initial_state_e == "supercritical" else delta_T_sub
 delta_Ti = delta_T_super if initial_state_i == "supercritical" else delta_T_sub
 delta_n  = delta_n_super if initial_state_n == "supercritical" else delta_n_sub
+n_ped_eff = n_ped if initial_state_n == "supercritical" else n_ped_sub
 
 T_e_init = tanh_profile(x, L, T_e_core, T_e_ped, x_sym=x_sym_T, delta=delta_Te)
 T_i_init = tanh_profile(x, L, T_i_core, T_i_ped, x_sym=x_sym_T, delta=delta_Ti)
-n_init   = tanh_profile(x, L, n_core,   n_ped,   x_sym=x_sym_n, delta=delta_n)
+n_init   = tanh_profile(x, L, n_core,   n_ped_eff, x_sym=x_sym_n, delta=delta_n)
 
 # Shared boundary condition values
-p_e_ped  = T_e_ped * n_ped
-p_i_ped  = T_i_ped * n_ped
-n_e_ped  = n_ped
-n_i_ped  = n_ped
+p_e_ped  = T_e_ped * n_ped_eff
+p_i_ped  = T_i_ped * n_ped_eff
+n_e_ped  = n_ped_eff
+n_i_ped  = n_ped_eff
 
 # Pressure profiles  (p = n × T, the evolved quantity)
 p_e_init = T_e_init * n_init
@@ -269,7 +271,7 @@ kap_n_init  = log_kap_cell(n_init,   dx)
 print(f"\n{'='*60}\nINITIAL CONDITIONS\n{'='*60}")
 print(f"Electrons: {initial_state_e}, max κ_Te = {np.max(kap_Te_init):.4f} (crit: {g_crit_e:.4f})")
 print(f"Ions:      {initial_state_i}, max κ_Ti = {np.max(kap_Ti_init):.4f} (crit: {g_crit_i:.4f})")
-print(f"Density:   max κ_n  = {np.max(kap_n_init):.4f} (crit: {g_crit_n:.4f})")
+print(f"Density:   {initial_state_n}, max κ_n  = {np.max(kap_n_init):.4f} (crit: {g_crit_n:.4f})")
 print(f"tau_ei = {transport_params['tau_ei']}")
 
 # ==========================================
