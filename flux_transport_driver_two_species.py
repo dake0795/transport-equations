@@ -76,6 +76,56 @@ def tanh_profile(x, L, f_core, f_ped, x_sym=0.55, delta=0.25):
     return f_ped + (f_core - f_ped) * (s - s1) / (s0 - s1)
 
 
+def plateau_profile(x, L, f_core, f_ped, x_start=0.3, x_end=0.7, delta_ramp=0.05):
+    """
+    Profile with approximately constant log-gradient κ between x_start and x_end.
+
+    The gradient region is a smooth plateau: κ ≈ ln(f_core/f_ped) / (x_end - x_start)
+    for x_start < x/L < x_end, and κ ≈ 0 outside (flat core / flat pedestal).
+
+    x_start, x_end : normalised positions (fraction of L) bounding the steep region.
+    delta_ramp     : smoothness of the ramp at transitions (fraction of L).
+    """
+    xi = x / L
+    # Smooth window function: ~1 between x_start and x_end, ~0 outside
+    window = 0.5 * (np.tanh((xi - x_start) / delta_ramp)
+                   - np.tanh((xi - x_end)   / delta_ramp))
+    # Integrate window to get shape of ln(f)
+    dxi = xi[1] - xi[0]
+    cum_window = np.cumsum(window) * dxi
+    # Normalise so ln(f) runs from ln(f_core) at x=0 to ln(f_ped) at x=L
+    total = cum_window[-1]
+    if total > 0:
+        ln_f = np.log(f_core) - cum_window * (np.log(f_core) - np.log(f_ped)) / total
+    else:
+        ln_f = np.full_like(x, np.log(f_core))
+    return np.exp(ln_f)
+
+
+def power_law_profile(x, L, f_core, f_ped, m=2, kap_target=None, g_crit=None):
+    """
+    Power-law profile: f(x) = f_ped + A * (1 - (x/L)^m).
+
+    If kap_target is given, the amplitude A is scaled so that
+    max(κ) = kap_target (useful for setting super/subcritical).
+    Otherwise A = f_core - f_ped.
+
+    m : shape exponent (higher = flatter core, steeper edge).
+    """
+    shape = 1.0 - (x / L)**m
+    if kap_target is not None:
+        # Scale amplitude so max log-gradient hits kap_target
+        trial = f_ped + (f_core - f_ped) * shape
+        kap_max_trial = np.max(-np.gradient(np.log(np.maximum(trial, 1e-10)),
+                                            x[1] - x[0]))
+        if kap_max_trial > 0:
+            # Iterate: adjust (f_core - f_ped) to hit target κ
+            # For power law, scaling amplitude scales κ approximately
+            scale = kap_target / kap_max_trial
+            return f_ped + scale * (f_core - f_ped) * shape
+    return f_ped + (f_core - f_ped) * shape
+
+
 def log_kap_cell(prof, dx):
     """Log gradient at cell centres: κ = -d(ln f)/dx."""
     return -np.gradient(np.log(np.maximum(prof, 1e-10)), dx)
@@ -194,8 +244,8 @@ transport_params = {
     "heating_mode":    heating_mode,
     "power_balance_pe": power_balance_pe,
     "power_balance_pi": power_balance_pi,
-    "power_balance_ne": power_balance_ne,
-    "power_balance_ni": power_balance_ni,
+    "power_balance_ne": None, #power_balance_ne,
+    "power_balance_ni": None, #power_balance_ni,
     "edge_sigma":       0.05,
 
     # --- Physics sources (T3D-like) ---
@@ -232,9 +282,14 @@ T_i_core = 1.5;  T_i_ped = 0.4
 n_core   = 2.0;  n_ped   = 0.2
 n_ped_sub = 1.2   # flatter density for subcritical (ln(2.0/1.2) ≈ 0.51 < κ_crit=1.0)
 
-# Tanh-based profiles: flat core + smooth drop to pedestal, matching typical tokamak shape
-#   x_sym  : normalised transition midpoint  (r/a)
-#   delta  : supercritical → small (steep); subcritical → large (broad)
+# ==========================================
+# Profile shape: "tanh", "plateau", or "power_law"
+# ==========================================
+profile_type = "power_law"
+
+# --- tanh parameters ---
+#   x_sym  : normalised transition midpoint (r/a)
+#   delta  : super → small (steep); sub → large (broad)
 x_sym_T       = 0.55
 delta_T_super = 0.20
 delta_T_sub   = 0.70
@@ -242,14 +297,46 @@ x_sym_n       = 0.80
 delta_n_super = 0.20
 delta_n_sub   = 0.70
 
-delta_Te = delta_T_super if initial_state_e == "supercritical" else delta_T_sub
-delta_Ti = delta_T_super if initial_state_i == "supercritical" else delta_T_sub
-delta_n  = delta_n_super if initial_state_n == "supercritical" else delta_n_sub
+# --- plateau parameters ---
+#   Constant κ over [x_start, x_end]; κ ≈ ln(f_core/f_ped) / (x_end - x_start)
+x_start_T = 0.5;  x_end_T = 0.85   # temperature steep region
+x_start_n = 0.6;  x_end_n = 0.90   # density steep region
+delta_ramp = 0.03                   # transition smoothness
+
+# --- power_law parameters ---
+#   Shape: f = f_ped + A*(1 - (x/L)^m).  Higher m = flatter core, steeper edge.
+#   kap_ratio: max(κ) = kap_ratio * g_crit  (1.8 = supercritical, 0.6 = subcritical)
+m_T = 2     # shape exponent for temperature
+m_n = 3     # shape exponent for density
+kap_ratio_super = 1.8   # supercritical: max κ = 1.8 × κ_crit
+kap_ratio_sub   = 0.6   # subcritical:   max κ = 0.6 × κ_crit
+
+# --- Derived settings ---
 n_ped_eff = n_ped if initial_state_n == "supercritical" else n_ped_sub
 
-T_e_init = tanh_profile(x, L, T_e_core, T_e_ped, x_sym=x_sym_T, delta=delta_Te)
-T_i_init = tanh_profile(x, L, T_i_core, T_i_ped, x_sym=x_sym_T, delta=delta_Ti)
-n_init   = tanh_profile(x, L, n_core,   n_ped_eff, x_sym=x_sym_n, delta=delta_n)
+if profile_type == "tanh":
+    delta_Te = delta_T_super if initial_state_e == "supercritical" else delta_T_sub
+    delta_Ti = delta_T_super if initial_state_i == "supercritical" else delta_T_sub
+    delta_n  = delta_n_super if initial_state_n == "supercritical" else delta_n_sub
+    T_e_init = tanh_profile(x, L, T_e_core, T_e_ped, x_sym=x_sym_T, delta=delta_Te)
+    T_i_init = tanh_profile(x, L, T_i_core, T_i_ped, x_sym=x_sym_T, delta=delta_Ti)
+    n_init   = tanh_profile(x, L, n_core, n_ped_eff,  x_sym=x_sym_n, delta=delta_n)
+
+elif profile_type == "plateau":
+    T_e_init = plateau_profile(x, L, T_e_core, T_e_ped, x_start=x_start_T, x_end=x_end_T, delta_ramp=delta_ramp)
+    T_i_init = plateau_profile(x, L, T_i_core, T_i_ped, x_start=x_start_T, x_end=x_end_T, delta_ramp=delta_ramp)
+    n_init   = plateau_profile(x, L, n_core, n_ped_eff,  x_start=x_start_n, x_end=x_end_n, delta_ramp=delta_ramp)
+
+elif profile_type == "power_law":
+    kap_e_target = (kap_ratio_super if initial_state_e == "supercritical" else kap_ratio_sub) * g_crit_e
+    kap_i_target = (kap_ratio_super if initial_state_i == "supercritical" else kap_ratio_sub) * g_crit_i
+    kap_n_target = (kap_ratio_super if initial_state_n == "supercritical" else kap_ratio_sub) * g_crit_n
+    T_e_init = power_law_profile(x, L, T_e_core, T_e_ped, m=m_T, kap_target=kap_e_target, g_crit=g_crit_e)
+    T_i_init = power_law_profile(x, L, T_i_core, T_i_ped, m=m_T, kap_target=kap_i_target, g_crit=g_crit_i)
+    n_init   = power_law_profile(x, L, n_core, n_ped_eff,  m=m_n, kap_target=kap_n_target, g_crit=g_crit_n)
+
+else:
+    raise ValueError(f"Unknown profile_type: {profile_type!r}. Use 'tanh', 'plateau', or 'power_law'.")
 
 # Shared boundary condition values
 p_e_ped  = T_e_ped * n_ped_eff
