@@ -67,14 +67,22 @@ transport_params = {
     "g_stiff": 3,
     "n_stiff": 2,
 
-    # --- Particle transport (density) ---
-    "D_n": 0.1,      # density diffusion coefficient
-    "V_n": 0.0,      # convection velocity
+    # --- Particle transport (density) - same NL model as pressure ---
+    "chi0_n": 1.0,         # NL particle transport coefficient
+    "chi_core_n": 1.0,     # Core stiff particle transport
+    "chi_RR_n": 0.01,      # Background diffusion for density
+
+    "g_c_n": 2.0,          # Critical density gradient
+    "g_stiff_n": 1.5,      # Onset of stiff transport (density)
+    "n_stiff_n": 2,        # Stiffness exponent (density)
+
+    "V_n": 0.0,            # Convection velocity for density (pinch)
 
     # --- Spatial structure ---
     "boundaries": [],
     "deltas": [],
     "flux_models": ["nl"],
+    "flux_models_n": ["nl"],  # Can differ from pressure flux model
 
     "nu4": 0,
 

@@ -43,19 +43,65 @@ def make_windows(x, boundaries, deltas):
 
 def particle_flux_function(g_n, x, params):
     """
-    Particle flux: Γ = -D * dn/dx + V * n
-    where D is diffusion, V is convection velocity
+    Particle flux: Γ = -D_n dn/dx with same NL model structure as heat flux
+
+    Uses same flux models as pressure but applied to density:
+    - NL: Γ_nl = χ₀_n g_n (1 - g_n/g_c_n)
+    - Core: Γ_core = χ_n,core g_n (1 + (g_n/g_stiff_n)^n_stiff_n)
+    - Linear: Γ_linear = χ_n,core g_n
+    - Plus background diffusion χ_RR_n everywhere
     """
-    n_dummy = np.ones_like(g_n)  # placeholder; actual n passed separately
+    g_n = np.nan_to_num(g_n, nan=0.0, posinf=0.0, neginf=0.0)
+    g_n = np.maximum(g_n, 0.0)
 
-    D_n = params.get("D_n", 0.1)
-    V_n = params.get("V_n", 0.0)
+    # Density transport parameters
+    chi0_n = params.get("chi0_n", 0.1)
+    chi_core_n = params.get("chi_core_n", 0.1)
+    chi_RR_n = params.get("chi_RR_n", 0.01)
 
-    # Simple model: Γ = -D_n * dn/dx + V_n * n
-    # For now, just diffusive part; convection handled in compute_rhs
-    Gamma = -D_n * g_n
+    g_c_n = params.get("g_c_n", 2.0)
+    g_stiff_n = params.get("g_stiff_n", 1.5)
+    n_stiff_n = params.get("n_stiff_n", 2)
 
-    return Gamma
+    boundaries = params.get("boundaries", [])
+    deltas = params.get("deltas", [0.01] * len(boundaries))
+    flux_models_n = params.get("flux_models_n", params.get("flux_models", ["nl"]))
+
+    # --- Core stiff model ---
+    ratio = np.clip(g_n / g_stiff_n, 0.0, 20.0)
+    Gamma_core = chi_core_n * g_n * (1.0 + ratio**n_stiff_n)
+
+    # --- Nonlinear model ---
+    Gamma_nl = chi0_n * g_n * np.maximum(1.0 - g_n / g_c_n, 0)
+    Gamma_nl = np.maximum(Gamma_nl, 0.0)
+
+    # --- Linear fallback model ---
+    Gamma_linear = chi_core_n * g_n
+
+    Gamma_map = {
+        "core": Gamma_core,
+        "nl": Gamma_nl,
+        "linear": Gamma_linear,
+    }
+
+    W = make_windows(x, boundaries, deltas)
+
+    if len(W) != len(flux_models_n):
+        raise ValueError(
+            "Number of flux_models_n must equal number of regions "
+            f"({len(W)} regions expected)"
+        )
+
+    Gamma_transport = np.zeros_like(g_n)
+    for Wi, model_name in zip(W, flux_models_n):
+        if model_name not in Gamma_map:
+            raise ValueError(f"Unknown flux model '{model_name}'")
+        Gamma_transport += Wi * Gamma_map[model_name]
+
+    # Plus background diffusion
+    Gamma_total = Gamma_transport + chi_RR_n * g_n
+
+    return Gamma_total
 
 
 def heat_flux_function(g_p, x, params):
