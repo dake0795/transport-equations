@@ -187,9 +187,9 @@ initial_state_n = "subcritical"   # n gradient:   "supercritical" or "subcritica
 # POWER BALANCE CONTROL
 # ==========================================
 power_balance_pe = 1.0   # ∫S_pe dx = ratio * Q_e_edge
-power_balance_pi = 1.0   # ∫S_pi dx = ratio * Q_i_edge
-power_balance_ne = 1.0   # ∫S_ne dx = ratio * Γ_e_edge
-power_balance_ni = 1.0   # ∫S_ni dx = ratio * Γ_i_edge
+power_balance_pi = None  # None = disabled (no external ion heat source)
+power_balance_ne = None   # ∫S_ne dx = ratio * Γ_e_edge
+power_balance_ni = None   # ∫S_ni dx = ratio * Γ_i_edge
 heating_mode     = "global"   # "global" or "localized"
 
 # ==========================================
@@ -244,8 +244,8 @@ transport_params = {
     "heating_mode":    heating_mode,
     "power_balance_pe": power_balance_pe,
     "power_balance_pi": power_balance_pi,
-    "power_balance_ne": None, #power_balance_ne,
-    "power_balance_ni": None, #power_balance_ni,
+    "power_balance_ne": power_balance_ne,
+    "power_balance_ni": power_balance_ni,
     "edge_sigma":       0.05,
 
     # --- Physics sources (T3D-like) ---
@@ -283,9 +283,11 @@ n_core   = 2.0;  n_ped   = 0.2
 n_ped_sub = 1.2   # flatter density for subcritical (ln(2.0/1.2) ≈ 0.51 < κ_crit=1.0)
 
 # ==========================================
-# Profile shape: "tanh", "plateau", or "power_law"
+# Profile shape per species: "tanh", "plateau", or "power_law"
 # ==========================================
-profile_type = "power_law"
+profile_type_Te = "power_law"
+profile_type_Ti = "power_law"
+profile_type_n  = "power_law"
 
 # --- tanh parameters ---
 #   x_sym  : normalised transition midpoint (r/a)
@@ -311,32 +313,43 @@ m_n = 3     # shape exponent for density
 kap_ratio_super = 1.8   # supercritical: max κ = 1.8 × κ_crit
 kap_ratio_sub   = 0.6   # subcritical:   max κ = 0.6 × κ_crit
 
+
+def _build_profile(ptype, x, L, f_core, f_ped, state, g_crit_val,
+                   x_sym, delta_super, delta_sub,
+                   x_start, x_end, dramp,
+                   m, kap_r_super, kap_r_sub):
+    """Build a single initial profile using the chosen method."""
+    if ptype == "tanh":
+        delta = delta_super if state == "supercritical" else delta_sub
+        return tanh_profile(x, L, f_core, f_ped, x_sym=x_sym, delta=delta)
+    elif ptype == "plateau":
+        return plateau_profile(x, L, f_core, f_ped,
+                               x_start=x_start, x_end=x_end, delta_ramp=dramp)
+    elif ptype == "power_law":
+        kap_target = (kap_r_super if state == "supercritical" else kap_r_sub) * g_crit_val
+        return power_law_profile(x, L, f_core, f_ped, m=m, kap_target=kap_target)
+    else:
+        raise ValueError(f"Unknown profile type: {ptype!r}")
+
+
 # --- Derived settings ---
 n_ped_eff = n_ped if initial_state_n == "supercritical" else n_ped_sub
 
-if profile_type == "tanh":
-    delta_Te = delta_T_super if initial_state_e == "supercritical" else delta_T_sub
-    delta_Ti = delta_T_super if initial_state_i == "supercritical" else delta_T_sub
-    delta_n  = delta_n_super if initial_state_n == "supercritical" else delta_n_sub
-    T_e_init = tanh_profile(x, L, T_e_core, T_e_ped, x_sym=x_sym_T, delta=delta_Te)
-    T_i_init = tanh_profile(x, L, T_i_core, T_i_ped, x_sym=x_sym_T, delta=delta_Ti)
-    n_init   = tanh_profile(x, L, n_core, n_ped_eff,  x_sym=x_sym_n, delta=delta_n)
-
-elif profile_type == "plateau":
-    T_e_init = plateau_profile(x, L, T_e_core, T_e_ped, x_start=x_start_T, x_end=x_end_T, delta_ramp=delta_ramp)
-    T_i_init = plateau_profile(x, L, T_i_core, T_i_ped, x_start=x_start_T, x_end=x_end_T, delta_ramp=delta_ramp)
-    n_init   = plateau_profile(x, L, n_core, n_ped_eff,  x_start=x_start_n, x_end=x_end_n, delta_ramp=delta_ramp)
-
-elif profile_type == "power_law":
-    kap_e_target = (kap_ratio_super if initial_state_e == "supercritical" else kap_ratio_sub) * g_crit_e
-    kap_i_target = (kap_ratio_super if initial_state_i == "supercritical" else kap_ratio_sub) * g_crit_i
-    kap_n_target = (kap_ratio_super if initial_state_n == "supercritical" else kap_ratio_sub) * g_crit_n
-    T_e_init = power_law_profile(x, L, T_e_core, T_e_ped, m=m_T, kap_target=kap_e_target, g_crit=g_crit_e)
-    T_i_init = power_law_profile(x, L, T_i_core, T_i_ped, m=m_T, kap_target=kap_i_target, g_crit=g_crit_i)
-    n_init   = power_law_profile(x, L, n_core, n_ped_eff,  m=m_n, kap_target=kap_n_target, g_crit=g_crit_n)
-
-else:
-    raise ValueError(f"Unknown profile_type: {profile_type!r}. Use 'tanh', 'plateau', or 'power_law'.")
+T_e_init = _build_profile(profile_type_Te, x, L, T_e_core, T_e_ped,
+                           initial_state_e, g_crit_e,
+                           x_sym_T, delta_T_super, delta_T_sub,
+                           x_start_T, x_end_T, delta_ramp,
+                           m_T, kap_ratio_super, kap_ratio_sub)
+T_i_init = _build_profile(profile_type_Ti, x, L, T_i_core, T_i_ped,
+                           initial_state_i, g_crit_i,
+                           x_sym_T, delta_T_super, delta_T_sub,
+                           x_start_T, x_end_T, delta_ramp,
+                           m_T, kap_ratio_super, kap_ratio_sub)
+n_init   = _build_profile(profile_type_n, x, L, n_core, n_ped_eff,
+                           initial_state_n, g_crit_n,
+                           x_sym_n, delta_n_super, delta_n_sub,
+                           x_start_n, x_end_n, delta_ramp,
+                           m_n, kap_ratio_super, kap_ratio_sub)
 
 # Shared boundary condition values
 p_e_ped  = T_e_ped * n_ped_eff
@@ -449,6 +462,37 @@ plot_comparison(x, kap_Te_init, kap_Ti_init,
 plot_single(x, kap_n_init, r"$\kappa_n$", r"$\kappa_n = -\partial_x \ln n$",
             r"$\mathrm{Initial\ Density\ Log\mbox{-}Gradient}$",
             "02b_initial_kap_n", color='C2', crit=g_crit_n)
+
+# 02c/d/e  Profile + gradient with supercritical shading
+for prof, kap, g_crit_val, prof_label, kap_label, title, filename, col in [
+    (T_e_init, kap_Te_init, g_crit_e, r"$T_e(x)$", r"$\kappa_{T_e}$",
+     r"$\mathrm{Electron\ Temperature}$", "02c_profile_kap_Te", 'C0'),
+    (T_i_init, kap_Ti_init, g_crit_i, r"$T_i(x)$", r"$\kappa_{T_i}$",
+     r"$\mathrm{Ion\ Temperature}$",      "02d_profile_kap_Ti", 'C3'),
+    (n_init,   kap_n_init,  g_crit_n, r"$n(x)$",   r"$\kappa_n$",
+     r"$\mathrm{Density}$",               "02e_profile_kap_n",  'C2'),
+]:
+    fig, (ax1, ax2) = plt.subplots(2, 1, sharex=True, gridspec_kw={"height_ratios": [1, 1]})
+    # Top: profile
+    ax1.plot(x, prof, linewidth=2, color=col)
+    ax1.set_ylabel(prof_label)
+    ax1.set_title(title)
+    # Shade x-regions where κ > κ_crit on the profile plot
+    super_mask = kap > g_crit_val
+    if np.any(super_mask):
+        ax1.fill_between(x, prof.min(), prof.max(), where=super_mask,
+                         alpha=0.15, color='red', label=r"$\kappa > \kappa_\mathrm{crit}$")
+        ax1.legend(fontsize=8)
+    # Bottom: log-gradient with critical line + shading
+    ax2.plot(x, kap, linewidth=2, color=col, label=kap_label)
+    ax2.axhline(g_crit_val, linestyle='--', color='k', linewidth=1.5,
+                label=r"$\kappa_\mathrm{crit}$")
+    if np.any(super_mask):
+        ax2.fill_between(x, g_crit_val, kap, where=super_mask,
+                         alpha=0.25, color='red')
+    ax2.set_xlabel(r"$x$"); ax2.set_ylabel(kap_label)
+    ax2.legend(fontsize=8)
+    style_plot(ax1); style_plot(ax2); save_and_show(filename)
 
 # 03a/b  Initial flux vs cumulative source (electrons and ions)
 for flux_f, H_src, ylabel, title, filename, col in [
