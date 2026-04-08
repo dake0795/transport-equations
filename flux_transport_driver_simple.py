@@ -6,6 +6,78 @@ from matplotlib.ticker import AutoMinorLocator
 from flux_transport_model_simple import flux_function, solving_loop, _get_bcs, _apply_bc_to_profile
 
 # ==========================================
+# Profile shape functions
+# ==========================================
+
+def tanh_profile(x, L, p_core, p_ped, x_sym=0.55, delta=0.25):
+    """
+    Smooth tokamak-like profile.
+    x_sym : normalised transition midpoint (fraction of L).
+    delta : transition half-width (fraction of L).
+    Exactly p_core at x=0, p_ped at x=L.
+    """
+    xi = x / L
+    s  = 0.5 * (1.0 - np.tanh((xi - x_sym) / delta))
+    s0 = 0.5 * (1.0 - np.tanh((0.0        - x_sym) / delta))
+    s1 = 0.5 * (1.0 - np.tanh((1.0        - x_sym) / delta))
+    return p_ped + (p_core - p_ped) * (s - s1) / (s0 - s1)
+
+
+def plateau_profile(x, L, p_core, p_ped, x_start=0.3, x_end=0.7, delta_ramp=0.05):
+    """
+    Profile with approximately constant absolute gradient g = -dp/dx over
+    [x_start, x_end] (in normalised coordinates) and flat outside.
+    Amplitude is set automatically so that p(0) = p_core and p(L) = p_ped.
+    x_start, x_end : normalised positions (fraction of L).
+    delta_ramp     : smoothness of ramp transitions (fraction of L).
+    """
+    xi = x / L
+    window = 0.5 * (np.tanh((xi - x_start) / delta_ramp)
+                  - np.tanh((xi - x_end)   / delta_ramp))
+    # Integrate window to get the shape of p
+    dxi   = xi[1] - xi[0]
+    cum_w = np.cumsum(window) * dxi
+    total = cum_w[-1]
+    if total > 0:
+        p = p_core - cum_w * (p_core - p_ped) / total
+    else:
+        p = np.full_like(x, p_core)
+    return p
+
+
+def power_law_profile(x, L, p_core, p_ped, m=2):
+    """Power-law: p = p_ped + A*(1 - (x/L)^m)."""
+    return p_ped + (p_core - p_ped) * (1.0 - (x / L)**m)
+
+
+def build_profile(x, L, p_core, p_ped, profile_type, target_g, params):
+    """
+    Build an initial pressure profile of the chosen type, then scale its
+    amplitude so that max(g) = target_g.  p_ped is preserved exactly.
+    """
+    pt = profile_type
+    if pt == "power_law":
+        p = power_law_profile(x, L, p_core, p_ped, m=params.get("m", 2))
+    elif pt == "tanh":
+        p = tanh_profile(x, L, p_core, p_ped,
+                         x_sym=params.get("x_sym", 0.55),
+                         delta=params.get("delta", 0.25))
+    elif pt == "plateau":
+        p = plateau_profile(x, L, p_core, p_ped,
+                            x_start=params.get("x_start", 0.3),
+                            x_end=params.get("x_end",   0.7),
+                            delta_ramp=params.get("delta_ramp", 0.05))
+    else:
+        raise ValueError(f"Unknown profile_type '{pt}'")
+
+    # Scale amplitude to hit target_g
+    g_raw = -np.gradient(p, x[1] - x[0])
+    g_max = np.max(g_raw)
+    if g_max > 0:
+        p = p_ped + (p - p_ped) * (target_g / g_max)
+    return p
+
+# ==========================================
 # Golden-style plotting
 # ==========================================
 FIGSIZE = (6.33, 4.33)
@@ -90,10 +162,13 @@ transport_params = {
 
     "nu4": 0.0,
 
-    # Power balance (used in "continuous" mode)
+    # Power balance enforcement
+    # heating_mode = "global"    : rescale core Gaussian uniformly to hit target
+    # heating_mode = "localized" : add an edge Gaussian to close the deficit
+    #   (useful for L-H transition experiments — drives the edge gradient up)
     "heating_mode":  "global",
     "power_balance": 0.8,
-    "edge_sigma":    0.05,
+    "edge_sigma":    0.05,   # width of edge Gaussian (localized mode only)
 
     # MHD stiff cliff (set chi_MHD = 0 to disable)
     # g_MHD set below after g_c is extracted
@@ -113,14 +188,22 @@ transport_params["g_MHD"] = 0.9 * g_c   # cliff onset; only active if chi_MHD > 
 # ==========================================
 p_core = 2.0
 p_ped  = 1.0
-m      = 2
 
-def base_profile(x, m):
-    return 1.0 - (x / L)**m
+# Profile shape: "power_law" (default), "tanh", or "plateau"
+profile_type = "power_law"
 
-p_shape     = base_profile(x, m)
-g_shape     = -np.gradient(p_shape, dx)
-max_g_shape = np.max(g_shape)
+# --- power_law parameters ---
+#   p = p_ped + A * (1 - (x/L)^m);  higher m = flatter core, steeper edge
+profile_params = {"m": 2}
+
+# --- tanh parameters (used when profile_type = "tanh") ---
+#   x_sym : normalised transition midpoint (fraction of L)
+#   delta : transition half-width (fraction of L); smaller = steeper
+# profile_params = {"x_sym": 0.55, "delta": 0.25}
+
+# --- plateau parameters (used when profile_type = "plateau") ---
+#   Constant g = -dp/dx in [x_start, x_end] (normalised), flat outside.
+# profile_params = {"x_start": 0.3, "x_end": 0.7, "delta_ramp": 0.05}
 
 if START_ON == "subcritical":
     target_g = 0.6 * g_crit
@@ -129,10 +212,9 @@ elif START_ON == "supercritical":
 else:
     raise ValueError("START_ON must be 'subcritical' or 'supercritical'")
 
-scale  = target_g / max_g_shape
-p_init = p_ped + scale * (p_core - p_ped) * p_shape
-
+p_init = build_profile(x, L, p_core, p_ped, profile_type, target_g, profile_params)
 g_init = -np.gradient(p_init, dx)
+print(f"Profile type  = {profile_type}")
 print(f"Initial max g = {np.max(g_init):.4f}")
 print(f"Critical g    = {g_crit:.4f}")
 

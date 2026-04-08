@@ -41,8 +41,22 @@ dp/dt = -div(Q) + S(x)
 | `chi_MHD` | 0.0 | MHD cliff stiffness (disabled by default) |
 | `power_balance_mode` | `"initial_only"` | `"continuous"`, `"initial_only"`, or `"free"` |
 | `power_balance` | 0.8 | Target ratio: `∫S dx = power_balance × Q_edge`. Used in both `continuous` (rescaled every RHS call) and `initial_only` (scale computed once at t=0 then fixed). Ignored in `free` mode. |
+| `heating_mode` | `"global"` | `"global"` (rescale core Gaussian) or `"localized"` (add edge Gaussian to close deficit — useful for L-H transition experiments) |
+| `edge_sigma` | 0.05 | Width of edge Gaussian (localized mode only) |
 | `S0` | 5.0 | Peak Gaussian source amplitude |
 | `sigma` | 0.25 L | Gaussian half-width |
+
+### Initial profile shapes
+
+Set `profile_type` and `profile_params` in the driver:
+
+| `profile_type` | Shape | `profile_params` keys |
+|----------------|-------|-----------------------|
+| `"power_law"` (default) | `p = p_ped + A·(1 - (x/L)^m)` | `m` (exponent; higher = flatter core, steeper edge) |
+| `"tanh"` | Smooth S-curve transition | `x_sym` (transition midpoint, fraction of L), `delta` (half-width; smaller = steeper) |
+| `"plateau"` | Flat core and pedestal, constant `g = -dp/dx` in `[x_start, x_end]` | `x_start`, `x_end` (fraction of L), `delta_ramp` (transition smoothness) |
+
+In all cases the amplitude is automatically scaled so that `max(g) = target_g`, where `target_g = 0.6 × g_crit` (subcritical) or `1.8 × g_crit` (supercritical).
 
 ### Diagnostic plots (saved to `simple_plots/`)
 
