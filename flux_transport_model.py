@@ -124,6 +124,23 @@ def flux_function(g, x, params):
     # --------------------------------------------------
     Q_total = Q_transport + chi_RR * g
 
+    # --------------------------------------------------
+    # MHD stiff cliff (optional)
+    #
+    # For g > g_MHD a steep additional transport term kicks in,
+    # representing MHD / ballooning modes clamping the gradient.
+    # Setting g_MHD slightly below g_c means the cliff overlaps
+    # with the falling NL flux, so the total Q has a smooth local
+    # minimum and then rises steeply — no unphysical blowup.
+    #
+    # Set chi_MHD = 0 (default) or omit g_MHD to disable.
+    # --------------------------------------------------
+    g_MHD   = params.get("g_MHD",   None)
+    chi_MHD = params.get("chi_MHD", 0.0)
+
+    if g_MHD is not None and chi_MHD > 0.0:
+        Q_total = Q_total + chi_MHD * np.maximum(g - g_MHD, 0.0)
+
     return Q_total
 
 # ==========================================================

@@ -304,6 +304,18 @@ g_c = transport_params["g_c"]
 
 g_crit = g_c / 2.0
 
+# --------------------------------------------------
+# MHD stiff cliff
+# g_MHD : gradient at which steep MHD-like transport switches on.
+#         Set slightly below g_c so the cliff overlaps the falling NL
+#         flux — total Q has a local minimum then rises steeply, preventing
+#         unphysical blowup beyond the NL zero.
+# chi_MHD : stiffness of the cliff (larger = harder gradient cap).
+#           Set chi_MHD = 0.0 (or remove g_MHD) to disable entirely.
+# --------------------------------------------------
+transport_params["g_MHD"]   = 0.9 * g_c   # ~ 3.6 with default g_c = 4
+transport_params["chi_MHD"] = 0.0         # disabled by default; try 5–20
+
 p_core = 2
 p_ped = 1
 

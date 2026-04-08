@@ -45,6 +45,8 @@ Temperature is inferred from pressure via a fixed background density: `T = p / n
 | `power_balance` | 0.8 | Target: `∫S_ext dx + ∫S_phys dx = power_balance × Q_edge` |
 | `heating_mode` | `"global"` | `"global"` (rescale S_ext) or `"localized"` (add edge Gaussian to S_ext) |
 | `flux_models` | `["nl"]` | Per-region flux type: `"nl"`, `"core"`, `"linear"` |
+| `g_MHD` | `0.9 × g_c` | Gradient at which MHD stiff cliff switches on. Set to `None` to disable. |
+| `chi_MHD` | `0.0` | Stiffness of the MHD cliff (disabled by default; try 5–20). |
 
 ### Physics source parameters
 
@@ -343,6 +345,12 @@ Q_linear = χ_core · g
 ```
 Q_RR = χ_RR · g
 ```
+
+**MHD stiff cliff (optional, added on top of all other terms):**
+```
+Q_MHD = χ_MHD · max(g - g_MHD, 0)
+```
+Represents MHD / ballooning mode transport that switches on sharply above `g_MHD`. Setting `g_MHD` slightly below `g_c` (e.g. `0.9 × g_c`) means the cliff overlaps with the falling NL flux: the total `Q` reaches a local minimum near `g_MHD` and then rises steeply, preventing the unphysical blowup that otherwise occurs when `Q_nl → 0` at `g = g_c`. Disabled by default (`chi_MHD = 0`).
 
 The active model per region is selected via `flux_models = ["nl"]` (list of region labels). Multiple regions can be blended with `make_windows(x, boundaries, deltas)`.
 
