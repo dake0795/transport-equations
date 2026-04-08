@@ -134,9 +134,34 @@ branch_label = START_ON
 # ==========================================
 # Power balance mode
 # ==========================================
-# "continuous"   : rescale source at every RHS call
-# "initial_only" : scale once at t=0 to match initial edge flux, then fixed
-# "free"         : no enforcement — raw Gaussian amplitude throughout
+# At steady state, global power balance requires:
+#
+#     ∫S dx  =  Q_edge
+#
+# i.e. all the heating injected must leave through the edge as a heat flux.
+# The ratio  power_balance = ∫S dx / Q_edge  sets what fraction of Q_edge
+# the source should drive.  Values < 1 mean the source alone cannot sustain
+# the profile — the plasma will relax; values > 1 drive a net energy input.
+#
+# Three modes control when (and whether) this ratio is enforced:
+#
+# "continuous"   — The source amplitude is rescaled inside every RHS
+#                  evaluation so that  ∫S dx = power_balance × Q_edge
+#                  at that instant.  RK4 does this 4× per timestep.
+#                  Effectively pins the power balance at every moment;
+#                  useful as a controlled reference but unphysical for
+#                  studying transient dynamics.
+#
+# "initial_only" — The rescaling is done once at t = 0 using the initial
+#                  edge flux Q_edge(t=0).  The source amplitude (or edge
+#                  Gaussian amplitude for localized mode) is then frozen
+#                  for the rest of the run.  The plasma evolves freely
+#                  under that fixed source; power balance is not guaranteed
+#                  after t = 0.  Most useful for studying relaxation and
+#                  stability.
+#
+# "free"         — No enforcement at all.  The raw Gaussian amplitude S0
+#                  is used throughout.  power_balance is ignored.
 power_balance_mode = "initial_only"
 
 # ==========================================
@@ -162,13 +187,22 @@ transport_params = {
 
     "nu4": 0.0,
 
-    # Power balance enforcement
-    # heating_mode = "global"    : rescale core Gaussian uniformly to hit target
-    # heating_mode = "localized" : add an edge Gaussian to close the deficit
-    #   (useful for L-H transition experiments — drives the edge gradient up)
+    # Power balance enforcement — how the source amplitude is adjusted:
+    #
+    # "global"    : the core Gaussian is rescaled uniformly so that
+    #               ∫S dx = power_balance × Q_edge.  The source shape
+    #               is unchanged; only its overall amplitude changes.
+    #
+    # "localized" : the core Gaussian is left at its raw amplitude and
+    #               a separate edge-localised Gaussian is added whose
+    #               amplitude closes the remaining deficit:
+    #               edge_amp = (power_balance × Q_edge - ∫S_core dx) / ∫gauss_edge dx
+    #               This concentrates the extra heating near x = L,
+    #               driving the edge gradient up — useful for exploring
+    #               the L-H transition analogue.
     "heating_mode":  "global",
     "power_balance": 0.8,
-    "edge_sigma":    0.05,   # width of edge Gaussian (localized mode only)
+    "edge_sigma":    0.05,   # half-width of edge Gaussian (localized mode only)
 
     # MHD stiff cliff (set chi_MHD = 0 to disable)
     # g_MHD set below after g_c is extracted
