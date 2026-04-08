@@ -181,14 +181,15 @@ transport_params = {
     "n_stiff": 2,
 
     # Spatial structure
-    # Two-region setup: NL transport either side of a narrow barrier region
-    # at x ~ 0.5 where only the stiff core model is active.  The NL flux
-    # saturates and falls in both flanking regions; the core model in the
-    # barrier never falls, so a steep pressure structure builds up there.
+    # Spatial structure
+    # Transport barrier at x ~ 0.5: NL model in the barrier region where
+    # flux saturates and falls (supercritical, reduced transport), flanked
+    # by stiff core model outside where transport rises steeply with g
+    # and keeps the gradient well-behaved.
     # Set boundaries = [] and flux_models = ["nl"] to revert to single region.
     "boundaries":  [0.45, 0.55],
     "deltas":      [0.02, 0.02],
-    "flux_models": ["nl", "core", "nl"],
+    "flux_models": ["core", "nl", "core"],
 
     "nu4": 0.0,
 
