@@ -191,10 +191,10 @@ initial_state_n = "subcritical"   # n gradient:   "supercritical" or "subcritica
 #       None per-channel disables that channel's enforcement
 power_balance_mode = "PI"   # "instantaneous" or "PI"
 
-power_balance_pe = 1.0   # target ratio ∫S_pe dx / Q_e_edge (None = disabled)
+power_balance_pe = None   # target ratio ∫S_pe dx / Q_e_edge (None = disabled)
 power_balance_pi = None   # None = disabled (no external ion heat source)
-power_balance_ne = 1   # target ratio ∫S_ne dx / Γ_e_edge (None = disabled)
-power_balance_ni = 1   # None = disabled
+power_balance_ne = None   # target ratio ∫S_ne dx / Γ_e_edge (None = disabled)
+power_balance_ni = None  # None = disabled
 heating_mode     = "global"   # "global" or "localized"
 
 # --- PI controller gains (only used when power_balance_mode = "PI") ---

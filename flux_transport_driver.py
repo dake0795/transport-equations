@@ -236,7 +236,7 @@ x = np.linspace(0, L, int(L/dx))
 # ==========================================
 # Branch selection
 # ==========================================
-START_ON = "subcritical"
+START_ON = "supercritical"
 branch_label = START_ON
 
 # ==========================================
@@ -319,7 +319,7 @@ g_crit = g_c / 2.0
 #           Set chi_MHD = 0.0 (or remove g_MHD) to disable entirely.
 # --------------------------------------------------
 transport_params["g_MHD"]   = 0.9 * g_c   # ~ 3.6 with default g_c = 4
-transport_params["chi_MHD"] = 0.0        # disabled; enable (try 5–20) to cap supercritical blowup
+transport_params["chi_MHD"] = 20        # disabled; enable (try 5–20) to cap supercritical blowup
 
 p_core = 2
 p_ped = 1
