@@ -286,8 +286,13 @@ transport_params = {
     "C_brem":      0.03,
     "Z_eff":       1.0,
     # Alpha heating:  P_α = C_alpha × ⟨σv⟩(T_keV) × n_D × n_T
-    #   C_alpha = 0  disables; set ~1e-3 for mild alpha heating at reactor conditions
-    "C_alpha":     1e-3,
+    #   C_alpha = 0  disables.
+    #   The physical factor ⟨σv⟩ × n_D × n_T at n=1e20 m⁻³, T~20 keV is ~3e5 W/m³.
+    #   C_alpha must bridge to model units where S_ext ~ O(1).
+    #   C_alpha = 1e-7 → ∫P_alpha ~ 0.03  (small perturbation on S_ext ~ 1)
+    #   C_alpha = 1e-6 → ∫P_alpha ~ 0.3   (mild, ~30% of S_ext)
+    #   C_alpha = 1e-5 → ∫P_alpha ~ 3     (dominant, approaching ignition regime)
+    "C_alpha":     1e-7,
     "f_deuterium": 0.5,
     "f_tritium":   0.5,
     # Reference scales used to convert model p → physical T, n
@@ -314,7 +319,7 @@ g_crit = g_c / 2.0
 #           Set chi_MHD = 0.0 (or remove g_MHD) to disable entirely.
 # --------------------------------------------------
 transport_params["g_MHD"]   = 0.9 * g_c   # ~ 3.6 with default g_c = 4
-transport_params["chi_MHD"] = 0.0         # disabled by default; try 5–20
+transport_params["chi_MHD"] = 20         # disabled by default; try 5–20
 
 p_core = 2
 p_ped = 1
