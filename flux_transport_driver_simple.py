@@ -206,7 +206,7 @@ transport_params = {
 
     # MHD stiff cliff (set chi_MHD = 0 to disable)
     # g_MHD set below after g_c is extracted
-    "chi_MHD": 0.0,
+    "chi_MHD": 10.0,
 }
 
 # ==========================================
