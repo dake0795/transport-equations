@@ -128,7 +128,7 @@ x = np.linspace(0, L, int(L / dx))
 # ==========================================
 # Branch selection
 # ==========================================
-START_ON    = "subcritical"   # "subcritical" or "supercritical"
+START_ON    = "supercritical"   # "subcritical" or "supercritical"
 branch_label = START_ON
 
 # ==========================================
