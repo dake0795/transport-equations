@@ -11,7 +11,7 @@ Four solvers, from minimal to most complete. All share the same nonlinear flux m
 | `flux_transport_driver_simple.py` | `flux_transport_model_simple.py` | `p` | absolute `g = -dp/dx` | Fixed Gaussian | No |
 | `flux_transport_driver.py` | `flux_transport_model.py` | `p` | absolute `g = -dp/dx` | Gaussian + bremsstrahlung + alpha heating | Optional PI/schedule |
 | `flux_transport_driver_coupled.py` | `flux_transport_model_coupled.py` | `p, n` | absolute `g = -df/dx` | Gaussian | No |
-| `flux_transport_driver_two_species.py` | `flux_transport_model_two_species.py` | `p_e, n_e, p_i, n_i` | log `κ = -d(ln f)/dx` | Gaussian + bremsstrahlung + alpha heating | No |
+| `flux_transport_driver_two_species.py` | `flux_transport_model_two_species.py` | `p_e, n_e, p_i, n_i` | log `κ = -d(ln f)/dx` | Gaussian + bremsstrahlung + alpha heating | PI (source multiplier per channel) |
 
 Time integration: Euler, RK4, or Crank-Nicolson (single-field drivers only).
 
