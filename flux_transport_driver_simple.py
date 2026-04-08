@@ -181,9 +181,14 @@ transport_params = {
     "n_stiff": 2,
 
     # Spatial structure
-    "boundaries":  [],
-    "deltas":      [],
-    "flux_models": ["nl"],
+    # Two-region setup: NL transport either side of a narrow barrier region
+    # at x ~ 0.5 where only the stiff core model is active.  The NL flux
+    # saturates and falls in both flanking regions; the core model in the
+    # barrier never falls, so a steep pressure structure builds up there.
+    # Set boundaries = [] and flux_models = ["nl"] to revert to single region.
+    "boundaries":  [0.45, 0.55],
+    "deltas":      [0.02, 0.02],
+    "flux_models": ["nl", "core", "nl"],
 
     "nu4": 0.0,
 
@@ -201,7 +206,7 @@ transport_params = {
     #               driving the edge gradient up — useful for exploring
     #               the L-H transition analogue.
     "heating_mode":  "global",
-    "power_balance": 0.8,
+    "power_balance": 1.2,
     "edge_sigma":    0.05,   # half-width of edge Gaussian (localized mode only)
 
     # MHD stiff cliff (set chi_MHD = 0 to disable)
