@@ -119,7 +119,7 @@ def save_and_show(filename):
 # ==========================================
 L  = 1.0
 dx = 0.005
-dt = 1e-6
+dt = 5e-7
 T  = 0.5
 num_snapshots = 8
 
@@ -170,7 +170,7 @@ power_balance_mode = "initial_only"
 transport_params = {
     # Transport strength
     "chi0":     10.0,
-    "chi_core":  2.0,   # outer linear regions — reduced to stay stable with dt=1e-6
+    "chi_core": 10.0,   # outer linear regions — comparable to chi0 so flux is higher outside barrier
     "chi_RR":   0.05,
 
     # Nonlinear model
