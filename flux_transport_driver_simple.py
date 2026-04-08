@@ -128,7 +128,7 @@ x = np.linspace(0, L, int(L / dx))
 # ==========================================
 # Branch selection
 # ==========================================
-START_ON    = "supercritical"   # "subcritical" or "supercritical"
+START_ON    = "subcritical"   # "subcritical" or "supercritical"
 branch_label = START_ON
 
 # ==========================================
@@ -170,7 +170,7 @@ power_balance_mode = "initial_only"
 transport_params = {
     # Transport strength
     "chi0":     10.0,
-    "chi_core": 10.0,
+    "chi_core":  2.0,   # outer linear regions — reduced to stay stable with dt=1e-6
     "chi_RR":   0.05,
 
     # Nonlinear model
@@ -184,12 +184,12 @@ transport_params = {
     # Spatial structure
     # Transport barrier at x ~ 0.5: NL model in the barrier region where
     # flux saturates and falls (supercritical, reduced transport), flanked
-    # by stiff core model outside where transport rises steeply with g
-    # and keeps the gradient well-behaved.
+    # by linear model outside (Q = chi_core * g) which is monotonic and
+    # keeps the gradient well-behaved without stiffness stability issues.
     # Set boundaries = [] and flux_models = ["nl"] to revert to single region.
     "boundaries":  [0.45, 0.55],
     "deltas":      [0.02, 0.02],
-    "flux_models": ["core", "nl", "core"],
+    "flux_models": ["linear", "nl", "linear"],
 
     "nu4": 0.0,
 
