@@ -40,7 +40,7 @@ dp/dt = -div(Q) + S(x)
 | `g_MHD` | `0.9 × g_c` | MHD cliff onset (only active if `chi_MHD > 0`) |
 | `chi_MHD` | 0.0 | MHD cliff stiffness (disabled by default) |
 | `power_balance_mode` | `"initial_only"` | `"continuous"`, `"initial_only"`, or `"free"` |
-| `power_balance` | 0.8 | Target `∫S dx = power_balance × Q_edge` |
+| `power_balance` | 0.8 | Target ratio: `∫S dx = power_balance × Q_edge`. Used in both `continuous` (rescaled every RHS call) and `initial_only` (scale computed once at t=0 then fixed). Ignored in `free` mode. |
 | `S0` | 5.0 | Peak Gaussian source amplitude |
 | `sigma` | 0.25 L | Gaussian half-width |
 
