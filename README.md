@@ -1,18 +1,64 @@
 # 1D Radial Transport Solvers — Instructions
 
-Three progressively more complete 1D radial transport solvers, each with its own driver and model file.
+Four solvers, from minimal to most complete. All share the same nonlinear flux model structure.
 
 ---
 
 ## Overview
 
-| Driver | Model | Fields evolved | Gradient type | Physics sources |
-|--------|-------|---------------|---------------|-----------------|
-| `flux_transport_driver.py` | `flux_transport_model.py` | `p` | absolute `g = -dp/dx` | Gaussian + bremsstrahlung + alpha heating |
-| `flux_transport_driver_coupled.py` | `flux_transport_model_coupled.py` | `p, n` | absolute `g = -df/dx` | Gaussian |
-| `flux_transport_driver_two_species.py` | `flux_transport_model_two_species.py` | `p_e, n_e, p_i, n_i` | log `κ = -d(ln f)/dx` | Gaussian + bremsstrahlung + alpha heating |
+| Driver | Model | Fields | Gradient type | Sources | Controller |
+|--------|-------|--------|---------------|---------|------------|
+| `flux_transport_driver_simple.py` | `flux_transport_model_simple.py` | `p` | absolute `g = -dp/dx` | Fixed Gaussian | No |
+| `flux_transport_driver.py` | `flux_transport_model.py` | `p` | absolute `g = -dp/dx` | Gaussian + bremsstrahlung + alpha heating | Optional PI/schedule |
+| `flux_transport_driver_coupled.py` | `flux_transport_model_coupled.py` | `p, n` | absolute `g = -df/dx` | Gaussian | No |
+| `flux_transport_driver_two_species.py` | `flux_transport_model_two_species.py` | `p_e, n_e, p_i, n_i` | log `κ = -d(ln f)/dx` | Gaussian + bremsstrahlung + alpha heating | No |
 
-All solvers use the same nonlinear flux model structure, with time integration via Euler, RK4, or Crank-Nicolson (single-field only).
+Time integration: Euler, RK4, or Crank-Nicolson (single-field drivers only).
+
+---
+
+## 0. Simple Single-Field Solver
+
+**Files:** `flux_transport_driver_simple.py` + `flux_transport_model_simple.py`
+
+The minimal starting point. Evolves a single pressure field with a fixed Gaussian source — no physics sources, no time-dependent controller:
+
+```
+dp/dt = -div(Q) + S(x)
+```
+
+`S(x)` is a Gaussian centred at `x = 0` with fixed amplitude. It does not change with `p` or `t`.
+
+### Key parameters
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `START_ON` | `"supercritical"` | Initial gradient branch |
+| `chi0` | 10.0 | NL transport coefficient |
+| `chi_RR` | 0.05 | Background diffusivity |
+| `g_c` | 4.0 | Critical gradient (NL flux → 0 at `g_c`) |
+| `g_MHD` | `0.9 × g_c` | MHD cliff onset (only active if `chi_MHD > 0`) |
+| `chi_MHD` | 0.0 | MHD cliff stiffness (disabled by default) |
+| `power_balance_mode` | `"initial_only"` | `"continuous"`, `"initial_only"`, or `"free"` |
+| `power_balance` | 0.8 | Target `∫S dx = power_balance × Q_edge` |
+| `S0` | 5.0 | Peak Gaussian source amplitude |
+| `sigma` | 0.25 L | Gaussian half-width |
+
+### Diagnostic plots (saved to `simple_plots/`)
+
+| Plot | Description |
+|------|-------------|
+| `01` | Initial pressure profile with supercritical region highlighted |
+| `02` | Initial gradient `g = -dp/dx` with `g_crit` line |
+| `03` | Initial flux `Q(x)` overlaid with cumulative source `∫S dx` |
+| `04` | Pressure snapshots |
+| `05` | Total integrated pressure `∫p dx` vs time |
+| `06` | Edge flux `Q_edge` and `∫S dx` vs time |
+| `07` | Gradient evolution at tracked x locations |
+| `08` | Gradient heatmap `g(x,t)` |
+| `09` | Pressure heatmap `p(x,t)` |
+| `10` | Flux balance at final snapshot: `Q(x)` vs `∫S dx` |
+| `11` | Effective diffusivity `χ_eff = dQ/dg` at final state |
 
 ---
 
