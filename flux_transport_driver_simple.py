@@ -544,3 +544,62 @@ ax.set_ylabel(r"$\chi_\mathrm{eff}$")
 ax.set_title("Effective diffusivity (final state)")
 style_plot(ax)
 save_and_show("11_effective_diffusivity")
+
+# ==========================================
+# Save all plotted quantities to npz
+# ==========================================
+import os
+npz_path = os.path.join("simple_plots", "results.npz")
+np.savez(
+    npz_path,
+
+    # --- Grid and time ---
+    x=x,
+    times=times,
+
+    # --- Initial state ---
+    p_init=p_init,
+    g_init=g_init,
+    Q_init=Q_init,
+    x_face=x_face,
+    Q_face_init=Q_face_init,
+    S_raw=S_raw,
+    S_enforced=S_enforced,
+
+    # --- Pressure snapshots ---
+    saved_p=np.array(saved_p),
+
+    # --- Time-series diagnostics ---
+    total_pressure_time=total_pressure_time,
+    edge_flux_time=edge_flux_time,
+    total_source_time=total_source_time,
+    max_gradient_time=max_gradient_time,
+
+    # --- Spatial evolution (heatmaps) ---
+    g_all=g_all,          # g(x, t) at snapshot times
+    p_all=p_all,          # p(x, t) at snapshot times
+
+    # --- Gradient at tracked locations ---
+    grad_history=grad_history,
+    track_points=track_points,
+
+    # --- Final state ---
+    p_final=saved_p[-1],
+    Q_final=Q,            # flux at final snapshot
+    F_S_final=F_S,        # cumulative source at final snapshot
+    chi_eff=chi_eff,
+
+    # --- Key scalar parameters ---
+    g_crit=np.float64(g_crit),
+    g_c=np.float64(g_c),
+    g_MHD=np.float64(transport_params["g_MHD"]),
+    chi_MHD=np.float64(transport_params["chi_MHD"]),
+    p_core=np.float64(p_core),
+    p_ped=np.float64(p_ped),
+    L=np.float64(L),
+    dx=np.float64(dx),
+    dt=np.float64(dt),
+    T=np.float64(T),
+    power_balance=np.float64(transport_params.get("power_balance") or 0.0),
+)
+print(f"Saved: {npz_path}")
