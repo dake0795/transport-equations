@@ -251,6 +251,43 @@ else:
     raise ValueError(f"Unknown power_balance_mode '{power_balance_mode}'")
 
 # ==========================================
+# Pre-solve plots: adjusted source
+# ==========================================
+
+S_raw      = source(x, p_init)          # before any enforcement
+S_enforced = source_fn(x, p_init)       # after enforcement (scale or edge Gaussian)
+
+H_raw      = np.cumsum(S_raw)      * dx
+H_enforced = np.cumsum(S_enforced) * dx
+
+# 03b. Q(x) vs cumulative enforced source (flux balance check)
+fig, ax = plt.subplots()
+ax.plot(x_face, Q_face_init, color='k', linewidth=2,
+        marker='o', markersize=3, label=r"$Q(x)$ at faces")
+ax.plot(x, H_enforced, color='C0', linewidth=2, linestyle="--",
+        label=r"$\int_0^x S_\mathrm{enforced}\,dx$")
+ax.set_xlabel("$x$")
+ax.set_ylabel("$Q(x)$")
+ax.set_title(r"$\mathrm{Initial\ flux\ vs\ enforced\ source}$")
+ax.legend()
+style_plot(ax)
+save_and_show("03b_flux_enforced_source")
+
+# 03c. Raw vs enforced source profile
+fig, ax = plt.subplots()
+ax.plot(x, S_raw,      color='C0', linewidth=2,
+        label=r"$S$ (raw)")
+ax.plot(x, S_enforced, color='C0', linewidth=2, linestyle="--",
+        label=r"$S$ (enforced)")
+ax.axhline(0, color='k', linewidth=0.7, linestyle=':')
+ax.set_xlabel("$x$")
+ax.set_ylabel("$S(x)$")
+ax.set_title(r"$\mathrm{Source\ before\ and\ after\ power\ balance}$")
+ax.legend()
+style_plot(ax)
+save_and_show("03c_source_comparison")
+
+# ==========================================
 # Solve
 # ==========================================
 saved_p = solving_loop(

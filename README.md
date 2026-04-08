@@ -50,7 +50,9 @@ dp/dt = -div(Q) + S(x)
 |------|-------------|
 | `01` | Initial pressure profile with supercritical region highlighted |
 | `02` | Initial gradient `g = -dp/dx` with `g_crit` line |
-| `03` | Initial flux `Q(x)` overlaid with cumulative source `∫S dx` |
+| `03` | Initial flux `Q(x)` overlaid with cumulative raw source `∫S dx` |
+| `03b` | `Q(x)` vs cumulative enforced source — flux balance check at t=0 |
+| `03c` | Source profile before and after power balance enforcement |
 | `04` | Pressure snapshots |
 | `05` | Total integrated pressure `∫p dx` vs time |
 | `06` | Edge flux `Q_edge` and `∫S dx` vs time |
