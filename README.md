@@ -8,8 +8,8 @@ Three progressively more complete 1D radial transport solvers, each with its own
 
 | Driver | Model | Fields evolved | Gradient type | Physics sources |
 |--------|-------|---------------|---------------|-----------------|
-| `flux_transport_driver.py` | `flux_transport_model.py` | `p` | absolute `g = -dp/dx` | Gaussian + feedback |
-| `flux_transport_driver_coupled.py` | `flux_transport_model_coupled.py` | `p, n` | absolute `g = -df/dx` | Gaussian + feedback |
+| `flux_transport_driver.py` | `flux_transport_model.py` | `p` | absolute `g = -dp/dx` | Gaussian + bremsstrahlung + alpha heating |
+| `flux_transport_driver_coupled.py` | `flux_transport_model_coupled.py` | `p, n` | absolute `g = -df/dx` | Gaussian |
 | `flux_transport_driver_two_species.py` | `flux_transport_model_two_species.py` | `p_e, n_e, p_i, n_i` | log `κ = -d(ln f)/dx` | Gaussian + bremsstrahlung + alpha heating |
 
 All solvers use the same nonlinear flux model structure, with time integration via Euler, RK4, or Crank-Nicolson (single-field only).
@@ -22,8 +22,15 @@ All solvers use the same nonlinear flux model structure, with time integration v
 
 Evolves a single pressure field `p(x,t)`:
 ```
-dp/dt = -div(Q) + S
+dp/dt = -div(Q) + S_ext + P_alpha - P_brem
 ```
+
+The total source has three distinct parts:
+- `S_ext` — external Gaussian heating (the controllable knob)
+- `P_alpha` — D-T alpha self-heating, depends on T(p)
+- `P_brem` — bremsstrahlung radiation loss, depends on n²√T(p)
+
+Temperature is inferred from pressure via a fixed background density: `T = p / n_ref`, so `T_keV = (p / n_ref) × T_ref_keV`.
 
 ### Key parameters
 
@@ -35,10 +42,105 @@ dp/dt = -div(Q) + S
 | `g_c` | 4.0 | Critical gradient (NL flux → 0 at `g_c`) |
 | `g_stiff` | 3.0 | Stiff transport onset |
 | `n_stiff` | 2 | Stiffness exponent |
-| `power_balance` | 1.0 | Ratio ∫S dx / Q_edge |
-| `heating_mode` | `"global"` | `"global"` (rescale S) or `"localized"` (add edge Gaussian) |
-| `alpha` | 0.1 | Source feedback coefficient: S ∝ (1 + α·p) |
+| `power_balance` | 0.8 | Target: `∫S_ext dx + ∫S_phys dx = power_balance × Q_edge` |
+| `heating_mode` | `"global"` | `"global"` (rescale S_ext) or `"localized"` (add edge Gaussian to S_ext) |
 | `flux_models` | `["nl"]` | Per-region flux type: `"nl"`, `"core"`, `"linear"` |
+
+### Physics source parameters
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `C_brem` | 0.03 | Bremsstrahlung coefficient. Set 0 to disable. |
+| `Z_eff` | 1.0 | Effective charge (scales bremsstrahlung) |
+| `C_alpha` | 1e-3 | Alpha heating coefficient. Set 0 to disable. |
+| `f_deuterium` | 0.5 | Deuterium fuel fraction |
+| `f_tritium` | 0.5 | Tritium fuel fraction |
+| `T_ref_keV` | 10.0 | Maps model T=1 → T_ref_keV keV (for reactivity lookup) |
+| `n_ref` | 1.0 | Background density in model units (`T = p / n_ref`) |
+| `n_ref_20` | 1.0 | Maps model n=1 → n_ref_20 × 10²⁰ m⁻³ |
+
+**Bremsstrahlung** (radiation loss):
+```
+P_brem = C_brem × n_ref² × Z_eff × √(T_keV)
+```
+
+**Alpha heating** (D-T fusion, Bosch-Hale reactivity):
+```
+P_alpha = C_alpha × 5.6e-13 × ⟨σv⟩(T_keV) × n_D × n_T
+```
+Since there is no separate density field, alpha heating is not split between species — the total power goes to pressure.
+
+### Power balance and the source split
+
+The external source (`S_ext`) and physics sources (`P_alpha`, `P_brem`) are handled separately throughout the solve. **Power balance enforcement only ever rescales `S_ext`** — the physics terms are always added unmodified, as they reflect the physical plasma state.
+
+The target for enforcement is:
+```
+∫S_ext_scaled dx + ∫(P_alpha - P_brem) dx = power_balance × Q_edge
+```
+
+Three enforcement modes are available via `power_balance_mode`:
+
+| Mode | Behaviour |
+|------|-----------|
+| `"continuous"` | `S_ext` is rescaled inside every RHS call (4× per RK4 step). Instantaneous control. |
+| `"initial_only"` | Scale factor computed once at t=0, then fixed. System evolves freely afterwards. Physics terms always remain self-consistent with the current `p`. |
+| `"free"` | No enforcement. `S_ext` is the raw Gaussian; physics terms evolve freely. |
+
+### Source controller
+
+The driver has an optional time-dependent source controller (`SourceController`) that manages two independent heating channels:
+
+| Channel | Gaussian location | Default observable |
+|---------|------------------|--------------------|
+| Core | `x = 0` | stored energy `∫p dx` |
+| Edge | `x = L` | edge gradient `g_edge` |
+
+Set `controller_mode` in the driver to one of three values:
+
+| `controller_mode` | Behaviour |
+|-------------------|-----------|
+| `None` (default) | Controller disabled. `source_fn` and `power_balance_mode` behave exactly as before. |
+| `"schedule"` | Open-loop: amplitude of each channel follows a user-supplied callable `A(t)`. |
+| `"PI"` | Closed-loop: independent PI controllers drive each channel's observable toward a target. |
+
+When a controller is active it **replaces** `source_fn` as the external source, and `power_balance` enforcement inside `compute_rhs` is automatically disabled (the controller manages the amplitude directly).
+
+#### PI controller (per channel)
+
+```
+error(t)   = target - observable(t)
+integral  += error * dt                  (anti-windup: frozen when output is clamped)
+A = max(A_ff + Kp * error + Ki * integral, 0)
+```
+
+Each channel is configured via a dict — example:
+
+```python
+source_controller = SourceController(
+    core_config={
+        "mode":        "PI",
+        "target":      W0,            # ∫p dx at t = 0
+        "target_type": "stored_energy",
+        "A_ff":        3.0,           # feedforward amplitude
+        "Kp":          2.0,
+        "Ki":          10.0,
+        "sigma":       0.25,          # Gaussian half-width
+    },
+    edge_config={
+        "mode":        "PI",
+        "target":      0.9 * g_crit,  # keep edge gradient just below g_crit
+        "target_type": "edge_gradient",
+        "A_ff":        0.0,
+        "Kp":          0.5,
+        "Ki":          2.0,
+        "sigma":       0.05,
+    },
+    L=L,
+)
+```
+
+Either channel can be set to `"off"` independently, so you can run core-only or edge-only control.
 
 ### Initial profile
 Power-law: `p = p_ped + A·(1 - (x/L)^m)`, with `m=2`, amplitude scaled so max gradient = 1.8×g_crit (supercritical) or 0.6×g_crit (subcritical).
@@ -256,20 +358,23 @@ Plots are saved as PDFs to `plots/` (single-field), `coupled_plots/` (coupled), 
 |------|-------------|
 | `01` | Initial pressure profile with supercritical region highlighted in red |
 | `02` | Initial gradient `g = -dp/dx` with `g_crit` dashed line |
-| `03` | Initial flux `Q(x)` overlaid with cumulative source `∫S dx` |
-| `03b` | Same after power balance enforcement |
-| `03c` | Source before and after power balance rescaling |
+| `03` | Initial `Q(x)` overlaid with cumulative integrals of `S_ext`, `P_alpha`, `-P_brem`, and `S_total` |
+| `03b` | Same after power balance enforcement: `Q` vs `∫S_total,enforced dx` and `∫S_ext,enforced dx` |
+| `03c` | Source components before and after enforcement: `S_ext` (raw/enforced), `P_alpha`, `-P_brem`, `S_total` |
 | `05` | Pressure evolution snapshots |
 | `06` | Total integrated pressure `∫p dx` vs time |
 | `07` | Gradient evolution at tracked x locations |
 | `08` | Gradient heatmap `g(x,t)` |
-| `09` | Power imbalance (edge flux − total heating) vs time |
-| `10` | Local flux and source vs time at tracked x locations |
+| `09` | Power imbalance (`Q_edge − ∫S_total dx`) vs time |
+| `09b` | Integrated source components vs time: `∫S_ext`, `∫P_alpha`, `-∫P_brem`, `∫S_total`, and `Q_edge` |
+| `10` | Local `Q` and net source `S_total` vs time at tracked x locations |
 | `11` | Pressure heatmap `p(x,t)` |
 | `12` | Max gradient and its x location vs time |
-| `13` | Edge gradient and edge source vs time |
-| `14` | Flux balance snapshots (Q vs ∫S dx) at final timesteps |
+| `13` | Edge gradient and net source `S_total` at edge vs time |
+| `14` | Flux balance at final snapshots: `Q(x)` vs cumulative integrals of `S_ext`, `P_alpha`, `-P_brem`, and `S_total` |
 | `15` | Effective diffusivity `χ_eff = dQ/dg` at final state |
+| `16` | Controller heating amplitudes `A_core(t)`, `A_edge(t)` vs time *(only when controller active)* |
+| `17` | Controller observables vs targets for core and edge channels *(only when controller active)* |
 
 ### Two-species driver
 

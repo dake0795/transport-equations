@@ -3,7 +3,186 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.ticker import AutoMinorLocator
 
-from flux_transport_model import flux_function, solving_loop
+from flux_transport_model import flux_function, solving_loop, alpha_heating, bremsstrahlung
+
+# ==========================================
+# Source Controller
+# ==========================================
+
+class SourceController:
+    """
+    Independent PI / open-loop controllers for a core and an edge heating channel.
+
+    Core channel : Gaussian centred at x = 0,  targets stored energy ∫p dx
+                   or core pressure p[1].
+    Edge channel : Gaussian centred at x = L,  targets edge gradient g_edge.
+
+    Each channel has three modes
+    --------------------------------
+    "off"      — channel contributes zero heating.
+    "schedule" — open-loop: amplitude = schedule(t), a user-supplied callable.
+    "PI"       — closed-loop: PI controller drives the observable toward ``target``.
+
+    Set ``controller_mode = None`` in the driver section to bypass the controller
+    entirely and run the model in its original form.
+
+    PI update law (per channel)
+    ----------------------------
+        error = target - observable
+        integral += error * dt           (anti-windup: frozen when output is clamped)
+        A = max(A_ff + Kp * error + Ki * integral, 0)
+
+    Config dict keys (``core_config`` / ``edge_config``)
+    -----------------------------------------------------
+    mode          : "off" | "schedule" | "PI"
+    sigma         : Gaussian half-width
+    A_init        : initial amplitude (used at t = 0 before first update)
+    schedule      : callable A(t)  [schedule mode only]
+    target        : scalar set-point [PI mode only]
+    target_type   : "stored_energy" | "core_pressure"  (core);
+                    "edge_gradient"                     (edge)
+    A_ff          : feedforward amplitude added before PI correction
+    Kp, Ki        : proportional and integral gains
+    """
+
+    def __init__(self, core_config, edge_config, L):
+        self.L = L
+
+        # ---- Core channel ----
+        self.core_mode       = core_config.get("mode",        "off")
+        self.core_sigma      = core_config.get("sigma",        0.25)
+        self.core_A          = core_config.get("A_init",       0.0)
+        self.core_schedule   = core_config.get("schedule",     None)
+        self.core_target     = core_config.get("target",       None)
+        self.core_target_type= core_config.get("target_type",  "stored_energy")
+        self.core_A_ff       = core_config.get("A_ff",         0.0)
+        self.core_Kp         = core_config.get("Kp",           1.0)
+        self.core_Ki         = core_config.get("Ki",           5.0)
+        self._core_integral  = 0.0
+
+        # ---- Edge channel ----
+        self.edge_mode       = edge_config.get("mode",        "off")
+        self.edge_sigma      = edge_config.get("sigma",        0.05)
+        self.edge_A          = edge_config.get("A_init",       0.0)
+        self.edge_schedule   = edge_config.get("schedule",     None)
+        self.edge_target     = edge_config.get("target",       None)
+        self.edge_target_type= edge_config.get("target_type",  "edge_gradient")
+        self.edge_A_ff       = edge_config.get("A_ff",         0.0)
+        self.edge_Kp         = edge_config.get("Kp",           1.0)
+        self.edge_Ki         = edge_config.get("Ki",           5.0)
+        self._edge_integral  = 0.0
+
+        # ---- Dense history (every step) ----
+        self.t_hist        = []
+        self.A_core_hist   = []
+        self.A_edge_hist   = []
+        self.obs_core_hist = []
+        self.obs_edge_hist = []
+
+        # ---- Snapshot-aligned history (at saved_p times) ----
+        self.snap_A_core = []
+        self.snap_A_edge = []
+
+    # ----------------------------------------------------------
+    # Shape functions
+    # ----------------------------------------------------------
+
+    def _core_shape(self, x):
+        return np.exp(-(x**2) / (2.0 * self.core_sigma**2))
+
+    def _edge_shape(self, x):
+        return np.exp(-((x - self.L)**2) / (2.0 * self.edge_sigma**2))
+
+    # ----------------------------------------------------------
+    # Observables
+    # ----------------------------------------------------------
+
+    def _observe_core(self, p, x):
+        if self.core_target_type == "stored_energy":
+            return np.trapezoid(p, x)
+        elif self.core_target_type == "core_pressure":
+            return float(p[1])
+        return np.trapezoid(p, x)
+
+    def _observe_edge(self, p, x):
+        dx = x[1] - x[0]
+        return (p[-2] - p[-1]) / dx   # -(dp/dx) at edge ≈ g_edge
+
+    # ----------------------------------------------------------
+    # Snapshot recording (called by solving_loop at save times)
+    # ----------------------------------------------------------
+
+    def _record_snapshot(self):
+        self.snap_A_core.append(self.core_A if self.core_mode != "off" else 0.0)
+        self.snap_A_edge.append(self.edge_A if self.edge_mode != "off" else 0.0)
+
+    # ----------------------------------------------------------
+    # Reconstruct source at a given snapshot index
+    # (used in diagnostics where we need the amplitude that was
+    #  active when snapshot snap_i was saved)
+    # ----------------------------------------------------------
+
+    def source_at_snapshot(self, snap_i, x):
+        S = np.zeros_like(x, dtype=float)
+        if self.core_mode != "off" and snap_i < len(self.snap_A_core):
+            S += self.snap_A_core[snap_i] * self._core_shape(x)
+        if self.edge_mode != "off" and snap_i < len(self.snap_A_edge):
+            S += self.snap_A_edge[snap_i] * self._edge_shape(x)
+        return S
+
+    # ----------------------------------------------------------
+    # Step update (called by solving_loop every timestep)
+    # ----------------------------------------------------------
+
+    def update(self, t, p, x, dt):
+        self.L = x[-1]   # keep in sync if domain ever changes
+
+        # ---- Core ----
+        if self.core_mode == "schedule":
+            self.core_A = max(float(self.core_schedule(t)), 0.0)
+
+        elif self.core_mode == "PI":
+            obs   = self._observe_core(p, x)
+            error = self.core_target - obs
+            self._core_integral += error * dt
+            A = self.core_A_ff + self.core_Kp * error + self.core_Ki * self._core_integral
+            # Anti-windup: undo the integral accumulation if output is clamped
+            if A < 0.0 and error < 0.0:
+                self._core_integral -= error * dt
+            self.core_A = max(A, 0.0)
+
+        # ---- Edge ----
+        if self.edge_mode == "schedule":
+            self.edge_A = max(float(self.edge_schedule(t)), 0.0)
+
+        elif self.edge_mode == "PI":
+            obs   = self._observe_edge(p, x)
+            error = self.edge_target - obs
+            self._edge_integral += error * dt
+            A = self.edge_A_ff + self.edge_Kp * error + self.edge_Ki * self._edge_integral
+            if A < 0.0 and error < 0.0:
+                self._edge_integral -= error * dt
+            self.edge_A = max(A, 0.0)
+
+        # ---- Record dense history ----
+        self.t_hist.append(t)
+        self.A_core_hist.append(self.core_A if self.core_mode != "off" else 0.0)
+        self.A_edge_hist.append(self.edge_A if self.edge_mode != "off" else 0.0)
+        self.obs_core_hist.append(self._observe_core(p, x))
+        self.obs_edge_hist.append(self._observe_edge(p, x))
+
+    # ----------------------------------------------------------
+    # __call__ — makes the controller a drop-in source function
+    # ----------------------------------------------------------
+
+    def __call__(self, x, p):
+        S = np.zeros_like(x, dtype=float)
+        if self.core_mode != "off":
+            S += self.core_A * self._core_shape(x)
+        if self.edge_mode != "off":
+            S += self.edge_A * self._edge_shape(x)
+        return S
+
 
 # ==========================================
 # Golden-style plotting
@@ -68,13 +247,7 @@ branch_label = START_ON
 # "initial_only" : scale source once at t=0 to match initial edge flux,
 #                  then fix amplitude — system evolves freely thereafter
 # "free"         : no power balance enforcement at all
-power_balance_mode = "continuous"
-
-# ==========================================
-# Feedback
-# ==========================================
-alpha = 0.1
-
+power_balance_mode = "initial_only"
 
 # ====================================================
 # Transport parameters (set here and passed to model)
@@ -104,8 +277,23 @@ transport_params = {
 
     # ----- Power balance enforcement -----
     "heating_mode": "global",  # "global" or "localized"
-    "power_balance": 1.0,      # ratio of integrated source to edge flux
+    "power_balance": 0.8,      # ratio of integrated source to edge flux
     "edge_sigma": 0.05,        # width of edge-localized Gaussian heating (for localized mode)
+
+    # ----- Physics sources -----
+    # Bremsstrahlung radiation loss:  P_brem = C_brem × n_ref² × Z_eff × √T_keV
+    #   C_brem = 0  disables; set ~0.03 for mild radiation at n~1, T~10 keV
+    "C_brem":      0.03,
+    "Z_eff":       1.0,
+    # Alpha heating:  P_α = C_alpha × ⟨σv⟩(T_keV) × n_D × n_T
+    #   C_alpha = 0  disables; set ~1e-3 for mild alpha heating at reactor conditions
+    "C_alpha":     1e-3,
+    "f_deuterium": 0.5,
+    "f_tritium":   0.5,
+    # Reference scales used to convert model p → physical T, n
+    "T_ref_keV":   10.0,   # model T=1  ↔  T_ref_keV keV
+    "n_ref":        1.0,   # background density in model units  (T = p / n_ref)
+    "n_ref_20":     1.0,   # n_ref corresponds to n_ref_20 × 10²⁰ m⁻³
 }
 
 # ==========================================
@@ -153,7 +341,16 @@ def base_source(x):
     return S0 * np.exp(-(x**2)/(sigma**2))
 
 def source(x, p):
-    return base_source(x) * (1.0 + alpha * p)
+    """External (Gaussian) heating only. This is the part scaled by power balance."""
+    return base_source(x)
+
+def physics_source(x, p):
+    """
+    Physics source terms: alpha heating minus bremsstrahlung.
+    Determined by the plasma state; never rescaled by power balance enforcement.
+    T_keV = (p / n_ref) × T_ref_keV with fixed background density n_ref.
+    """
+    return alpha_heating(p, transport_params) - bremsstrahlung(p, transport_params)
 
 # ==========================================
 # Compute initial gradient and flux using same discretization as compute_rhs
@@ -182,12 +379,25 @@ Q_init = flux_function(g_init, x, transport_params)
 p_x_init = np.gradient(p_init, dx)
 g_init = -p_x_init
 
-initial_heating = np.trapezoid(source(x, p_init), x)
-initial_edge_flux = Q_face_init[-1]
+S_ext_init   = source(x, p_init)          # base_source only
+S_phys_init  = physics_source(x, p_init)  # P_alpha - P_brem
+S_total_init = S_ext_init + S_phys_init
 
-print("Initial total heating =", initial_heating)
-print("Initial edge flux =", initial_edge_flux)
-print("Initial balance (edge_flux - heating) =", initial_edge_flux - initial_heating)
+P_alpha_init = alpha_heating(p_init, transport_params)
+P_brem_init  = bremsstrahlung(p_init, transport_params)
+
+initial_edge_flux    = Q_face_init[-1]
+initial_S_ext        = np.trapezoid(S_ext_init,   x)
+initial_P_alpha      = np.trapezoid(P_alpha_init, x)
+initial_P_brem       = np.trapezoid(P_brem_init,  x)
+initial_S_total      = np.trapezoid(S_total_init, x)
+
+print(f"Initial external heating  = {initial_S_ext:.4f}")
+print(f"Initial alpha heating     = {initial_P_alpha:.4f}")
+print(f"Initial bremsstrahlung    = {initial_P_brem:.4f}")
+print(f"Initial net source        = {initial_S_total:.4f}")
+print(f"Initial edge flux         = {initial_edge_flux:.4f}")
+print(f"Initial balance           = {initial_edge_flux - initial_S_total:.4f}")
 
 # ==========================================
 # INITIAL DIAGNOSTIC PLOTS
@@ -244,30 +454,26 @@ save_and_show("02_initial_gradient_profile")
 
 fig, ax = plt.subplots()
 
-ax.plot(x, Q_init, label="Initial Q(x)")
+ax.plot(x, Q_init, label=r"$Q(x)$", color='k', linewidth=2)
 
-# Source
-S = source(x, p_init)
+H_ext   = np.cumsum(S_ext_init)   * dx
+H_alpha = np.cumsum(P_alpha_init) * dx
+H_brem  = np.cumsum(-P_brem_init) * dx
+H_total = np.cumsum(S_total_init) * dx
 
-# Cumulative integrated source
-H = np.cumsum(S) * dx
+ax.plot(x, H_ext,   linestyle="--", color='C0', label=r"$\int_0^x S_\mathrm{ext}$")
+ax.plot(x, H_alpha, linestyle="--", color='C2', label=r"$\int_0^x P_\alpha$")
+ax.plot(x, H_brem,  linestyle="--", color='C3', label=r"$-\int_0^x P_\mathrm{brem}$")
+ax.plot(x, H_total, linestyle="-.", color='C1', label=r"$\int_0^x S_\mathrm{total}$")
 
-ax.plot(x, H, linestyle="--", label=r"$\int_0^x \, S(x') \, \mathrm{d}x'$")
-# Plot all region boundaries if they exist
 boundaries = transport_params.get("boundaries", [])
-
 for i, xb in enumerate(boundaries):
-    ax.axvline(
-        xb,
-        linestyle="--",
-        linewidth=1.5,
-        alpha=0.7,
-        label=r"$x = {:.2f}$".format(xb) 
-    )
+    ax.axvline(xb, linestyle="--", linewidth=1.5, alpha=0.7,
+               label=r"$x = {:.2f}$".format(xb))
 
 ax.set_xlabel("$x$")
 ax.set_ylabel("$Q(x)$")
-ax.set_title("$\mathrm{Initial \ flux \ profile}$")
+ax.set_title(r"$\mathrm{Initial\ flux\ profile}$")
 ax.legend()
 
 style_plot(ax)
@@ -277,98 +483,82 @@ save_and_show("03_initial_flux_profile")
 # 3b. Initial flux profile AFTER power balance enforcement
 # ----------------------------------------------------------
 
-# Recompute source after power balance is applied
-# (mimicking what compute_rhs does)
+# Recompute enforced external source, mirroring compute_rhs logic.
+# Physics source (S_phys) is never rescaled.
 
-S_init_raw = source(x, p_init)
+heating_mode   = transport_params.get("heating_mode", "global")
+power_balance  = transport_params.get("power_balance", None)
+Q_edge_init    = Q_face_init[-1]
 
-# Apply power balance enforcement
-heating_mode = transport_params.get("heating_mode", "global")
-power_balance = transport_params.get("power_balance", None)
-
-S_init_enforced = S_init_raw.copy()
+S_ext_enforced = S_ext_init.copy()
 
 if heating_mode == "localized" and power_balance is not None:
-    Q_edge_init = Q_face_init[-1]
-    total_S_raw = np.trapezoid(S_init_raw, x)
-
-    required_integral = power_balance * Q_edge_init
-    deficit = required_integral - total_S_raw
-
-    L_val = L
-    edge_sigma = transport_params.get("edge_sigma", 0.05)
-
-    # Compute actual integral of Gaussian over domain [0, L]
-    gaussian_test = np.exp(-((x - L_val)**2) / (2 * edge_sigma**2))
-    gaussian_norm = np.trapezoid(gaussian_test, x)
-
-    if gaussian_norm > 0:
-        edge_amp = deficit / gaussian_norm
-    else:
-        edge_amp = 0
-
-    gaussian_edge = edge_amp * np.exp(-((x - L_val)**2) / (2 * edge_sigma**2))
-    S_init_enforced = S_init_enforced + gaussian_edge
+    total_S_raw  = np.trapezoid(S_ext_init + S_phys_init, x)
+    deficit      = power_balance * Q_edge_init - total_S_raw
+    edge_sigma   = transport_params.get("edge_sigma", 0.05)
+    gauss_shape  = np.exp(-((x - L)**2) / (2 * edge_sigma**2))
+    gauss_norm   = np.trapezoid(gauss_shape, x)
+    edge_amp     = deficit / gauss_norm if gauss_norm > 0 else 0.0
+    S_ext_enforced = S_ext_init + edge_amp * gauss_shape
 
 elif heating_mode == "global" and power_balance is not None:
-    Q_edge_init = Q_face_init[-1]
-    total_S_raw = np.trapezoid(S_init_raw, x)
-    if total_S_raw > 0 and Q_edge_init > 0:
-        S_init_enforced = S_init_enforced * (power_balance * Q_edge_init / total_S_raw)
+    total_S_ext  = np.trapezoid(S_ext_init,  x)
+    total_S_phys = np.trapezoid(S_phys_init, x)
+    target_ext   = power_balance * Q_edge_init - total_S_phys
+    if total_S_ext > 0 and target_ext > 0:
+        S_ext_enforced = S_ext_init * (target_ext / total_S_ext)
 
-# Cumulative enforced source
-H_enforced = np.cumsum(S_init_enforced) * dx
+S_total_enforced = S_ext_enforced + S_phys_init
+
+H_total_enforced = np.cumsum(S_total_enforced) * dx
+H_ext_enforced   = np.cumsum(S_ext_enforced)   * dx
 
 fig, ax = plt.subplots()
-
-# Plot face fluxes at face locations for accuracy
-ax.plot(x_face, Q_face_init, label="Initial Q(x) at faces", marker='o', markersize=3)
-# Also show cumulative source at cell centers for reference
-ax.plot(x, H_enforced, linestyle="--", label=r"$\int_0^x \, S_{\mathrm{enforced}}(x') \, \mathrm{d}x'$")
+ax.plot(x_face, Q_face_init,    label=r"$Q(x)$ at faces", color='k',
+        marker='o', markersize=3, linewidth=2)
+ax.plot(x, H_total_enforced,    label=r"$\int_0^x S_\mathrm{total,enforced}$",
+        linestyle="-.", color='C1', linewidth=2)
+ax.plot(x, H_ext_enforced,      label=r"$\int_0^x S_\mathrm{ext,enforced}$",
+        linestyle="--", color='C0', linewidth=1.5)
 
 boundaries = transport_params.get("boundaries", [])
-
 for i, xb in enumerate(boundaries):
-    ax.axvline(
-        xb,
-        linestyle="--",
-        linewidth=1.5,
-        alpha=0.7,
-        label=r"$x = {:.2f}$".format(xb)
-    )
+    ax.axvline(xb, linestyle="--", linewidth=1.5, alpha=0.7,
+               label=r"$x = {:.2f}$".format(xb))
 
 ax.set_xlabel("$x$")
 ax.set_ylabel("$Q(x)$")
 ax.set_title(r"$\mathrm{Initial\ flux\ profile\ (after\ power\ balance)}$")
 ax.legend()
-
 style_plot(ax)
 save_and_show("03b_initial_flux_balanced")
 
 # ----------------------------------------------------------
-# 3c. Source before and after power balance enforcement
+# 3c. Source components before and after power balance
 # ----------------------------------------------------------
 
 fig, ax = plt.subplots()
 
-ax.plot(x, S_init_raw, label="Original source", linewidth=2)
-ax.plot(x, S_init_enforced, linestyle="--", label="Enforced source", linewidth=2)
+ax.plot(x, S_ext_init,       color='C0', linewidth=2,
+        label=r"$S_\mathrm{ext}$ (raw)")
+ax.plot(x, S_ext_enforced,   color='C0', linewidth=2, linestyle="--",
+        label=r"$S_\mathrm{ext}$ (enforced)")
+ax.plot(x, P_alpha_init,     color='C2', linewidth=2,
+        label=r"$P_\alpha$ (alpha heating)")
+ax.plot(x, -P_brem_init,     color='C3', linewidth=2,
+        label=r"$-P_\mathrm{brem}$ (radiation loss)")
+ax.plot(x, S_total_enforced, color='C1', linewidth=2, linestyle="-.",
+        label=r"$S_\mathrm{total}$ (enforced)")
+ax.axhline(0, color='k', linewidth=0.7, linestyle=':')
 
 boundaries = transport_params.get("boundaries", [])
-
 for i, xb in enumerate(boundaries):
-    ax.axvline(
-        xb,
-        linestyle="--",
-        linewidth=1.5,
-        alpha=0.7,
-    )
+    ax.axvline(xb, linestyle="--", linewidth=1.5, alpha=0.7)
 
 ax.set_xlabel("$x$")
 ax.set_ylabel("$S(x)$")
-ax.set_title(r"$\mathrm{Source\ profile\ (before\ and\ after\ power\ balance)}$")
-ax.legend()
-
+ax.set_title(r"$\mathrm{Source\ components\ (before\ and\ after\ power\ balance)}$")
+ax.legend(fontsize=11)
 style_plot(ax)
 save_and_show("03c_source_comparison")
 
@@ -380,30 +570,34 @@ save_and_show("03c_source_comparison")
 solve_params = dict(transport_params)   # copy so we don't mutate
 
 if power_balance_mode == "continuous":
-    # Default: enforcement inside every RHS call — no changes needed
+    # Enforcement runs inside every RHS call — source_fn is the external part only.
+    # physics_source is passed separately and added unscaled inside compute_rhs.
     source_fn = source
 
 elif power_balance_mode == "initial_only":
-    # Compute scale factor once from initial state, then fix it
-    pb_ratio     = transport_params.get("power_balance", 1.0)
+    # Scale factor computed once from initial state, then fixed.
+    # Only the external source is scaled; physics terms evolve freely.
+    pb_ratio         = transport_params.get("power_balance", 1.0)
     heating_mode_str = transport_params.get("heating_mode", "global")
-    total_S0     = np.trapezoid(source(x, p_init), x)
-    Q_edge0      = Q_face_init[-1]
+    total_S0_ext     = np.trapezoid(source(x, p_init), x)      # ∫S_ext dx at t=0
+    total_S0_phys    = np.trapezoid(physics_source(x, p_init), x)  # ∫S_phys dx at t=0
+    Q_edge0          = Q_face_init[-1]
 
-    if heating_mode_str == "global" and total_S0 > 0 and Q_edge0 > 0:
-        scale_0 = pb_ratio * Q_edge0 / total_S0
-        def source_fn(x, p, _s=scale_0): return _s * source(x, p)
-        print(f"[initial_only] Source scale fixed at {scale_0:.4f} (t=0)")
+    if heating_mode_str == "global" and total_S0_ext > 0:
+        target_ext = pb_ratio * Q_edge0 - total_S0_phys
+        scale_0    = max(target_ext / total_S0_ext, 0.0)
+        def source_fn(x, p, _s=scale_0): return _s * base_source(x)
+        print(f"[initial_only] External source scale fixed at {scale_0:.4f} (t=0)")
     elif heating_mode_str == "localized":
-        # Add a fixed edge Gaussian deficit computed from initial state
-        deficit0   = pb_ratio * Q_edge0 - total_S0
+        # Gaussian fills the gap between total initial source and target
+        total_S0 = total_S0_ext + total_S0_phys
+        deficit0 = pb_ratio * Q_edge0 - total_S0
         edge_sigma = transport_params.get("edge_sigma", 0.05)
-        g_test     = np.exp(-((x - L)**2) / (2 * edge_sigma**2))
-        g_norm     = np.trapezoid(g_test, x)
-        edge_amp   = deficit0 / g_norm if g_norm > 0 else 0.0
-        edge_gauss = edge_amp * g_test
+        g_test   = np.exp(-((x - L)**2) / (2 * edge_sigma**2))
+        g_norm   = np.trapezoid(g_test, x)
+        edge_amp = deficit0 / g_norm if g_norm > 0 else 0.0
         def source_fn(x, p, _ea=edge_amp, _es=edge_sigma, _L=L):
-            return source(x, p) + _ea * np.exp(-((x - _L)**2) / (2 * _es**2))
+            return base_source(x) + _ea * np.exp(-((x - _L)**2) / (2 * _es**2))
         print(f"[initial_only] Fixed edge Gaussian amplitude = {edge_amp:.4f} (t=0)")
     else:
         source_fn = source
@@ -420,6 +614,75 @@ elif power_balance_mode == "free":
 else:
     raise ValueError(f"Unknown power_balance_mode '{power_balance_mode}'")
 
+# ==========================================
+# Source controller
+# ==========================================
+# Set controller_mode = None to run in the original form (no controller).
+# "schedule" : open-loop ramps defined by core_schedule / edge_schedule below.
+# "PI"       : closed-loop; core targets stored energy, edge targets g_edge.
+#
+# When a controller is active:
+#   - it replaces source_fn (so base_source is no longer used directly)
+#   - power_balance enforcement inside compute_rhs is disabled (set to None)
+# ==========================================
+
+controller_mode = None   # None | "schedule" | "PI"
+
+if controller_mode is None:
+    source_controller = None
+
+elif controller_mode == "schedule":
+    # Open-loop ramp examples — edit as needed.
+    def core_schedule(t):
+        """Ramp core heating from 0 to 5.0 over the first 0.1 time units."""
+        return min(t / 0.1, 1.0) * 5.0
+
+    def edge_schedule(t):
+        """Switch on edge heating at t = 0.2, ramp up over 0.1 time units."""
+        return max(t - 0.2, 0.0) / 0.1 * 3.0
+
+    source_controller = SourceController(
+        core_config={"mode": "schedule", "schedule": core_schedule, "sigma": 0.25},
+        edge_config={"mode": "schedule", "schedule": edge_schedule, "sigma": 0.05},
+        L=L,
+    )
+
+elif controller_mode == "PI":
+    # Set-points derived from initial state.
+    W0             = np.trapezoid(p_init, x)
+    g_edge_target  = 0.9 * g_crit   # keep edge gradient just below g_crit
+
+    source_controller = SourceController(
+        core_config={
+            "mode":        "PI",
+            "target":      W0,
+            "target_type": "stored_energy",
+            "A_ff":        3.0,
+            "Kp":          2.0,
+            "Ki":          10.0,
+            "sigma":       0.25,
+        },
+        edge_config={
+            "mode":        "PI",
+            "target":      g_edge_target,
+            "target_type": "edge_gradient",
+            "A_ff":        0.0,
+            "Kp":          0.5,
+            "Ki":          2.0,
+            "sigma":       0.05,
+        },
+        L=L,
+    )
+
+else:
+    raise ValueError(f"Unknown controller_mode '{controller_mode}'")
+
+# When a controller is active it manages the source directly; disable the
+# built-in power balance enforcement to avoid double-scaling.
+if source_controller is not None:
+    solve_params["power_balance"] = None
+    print(f"[controller] mode='{controller_mode}' — power_balance enforcement disabled")
+
 saved_p = solving_loop(
     p_init,
     dt,
@@ -429,7 +692,9 @@ saved_p = solving_loop(
     p_ped,
     source_fn,
     num_snapshots,
-    solve_params
+    solve_params,
+    physics_source_function=physics_source,
+    source_controller=source_controller,
 )
 
 times = np.linspace(0, T, len(saved_p))
@@ -437,23 +702,39 @@ times = np.linspace(0, T, len(saved_p))
 # ==========================================
 # Diagnostics
 # ==========================================
-total_pressure_time = []
-edge_flux_time = []
-total_heating_time = []
-max_gradient_time = []
+total_pressure_time  = []
+edge_flux_time       = []
+total_S_ext_time     = []
+total_P_alpha_time   = []
+total_P_brem_time    = []
+total_heating_time   = []
+max_gradient_time    = []
 
-for p in saved_p:
+for snap_i, p in enumerate(saved_p):
     total_pressure_time.append(np.trapezoid(p, x))
     p_x = np.gradient(p, dx)
-    Q = flux_function(p_x,x, transport_params)
+    Q = flux_function(p_x, x, transport_params)
     edge_flux_time.append(Q[-1])
-    total_heating_time.append(np.trapezoid(source_fn(x, p), x))
+    # External source: use controller snapshot amplitude when active
+    if source_controller is not None:
+        _S_ext = np.trapezoid(source_controller.source_at_snapshot(snap_i, x), x)
+    else:
+        _S_ext = np.trapezoid(source_fn(x, p), x)
+    _P_alpha = np.trapezoid(alpha_heating(p, transport_params), x)
+    _P_brem  = np.trapezoid(bremsstrahlung(p, transport_params), x)
+    total_S_ext_time.append(_S_ext)
+    total_P_alpha_time.append(_P_alpha)
+    total_P_brem_time.append(_P_brem)
+    total_heating_time.append(_S_ext + _P_alpha - _P_brem)
     max_gradient_time.append(np.max(-p_x))
 
-total_pressure_time = np.array(total_pressure_time)
-edge_flux_time = np.array(edge_flux_time)
-total_heating_time = np.array(total_heating_time)
-max_gradient_time = np.array(max_gradient_time)
+total_pressure_time  = np.array(total_pressure_time)
+edge_flux_time       = np.array(edge_flux_time)
+total_S_ext_time     = np.array(total_S_ext_time)
+total_P_alpha_time   = np.array(total_P_alpha_time)
+total_P_brem_time    = np.array(total_P_brem_time)
+total_heating_time   = np.array(total_heating_time)
+max_gradient_time    = np.array(max_gradient_time)
 
 # ==========================================
 # Pressure evolution plot
@@ -582,7 +863,28 @@ if extra_plots:
     save_and_show("09_power_imbalance")
 
     # ==========================================================
-    # 3. Local source vs flux (MAX 8 curves total)
+    # 3. Integrated source components vs time
+    # ==========================================================
+    fig, ax = plt.subplots()
+    ax.plot(times, total_S_ext_time,                   color='C0', linewidth=2,
+            label=r"$\int S_\mathrm{ext}\,dx$")
+    ax.plot(times, total_P_alpha_time,                 color='C2', linewidth=2,
+            label=r"$\int P_\alpha\,dx$")
+    ax.plot(times, -np.array(total_P_brem_time),       color='C3', linewidth=2,
+            label=r"$-\int P_\mathrm{brem}\,dx$")
+    ax.plot(times, total_heating_time,                 color='C1', linewidth=2, linestyle="-.",
+            label=r"$\int S_\mathrm{total}\,dx$")
+    ax.plot(times, edge_flux_time,                     color='k',  linewidth=1.5, linestyle="--",
+            label=r"$Q_\mathrm{edge}$")
+    ax.set_xlabel("t")
+    ax.set_ylabel("Integrated source / edge flux")
+    ax.set_title(rf"$\mathrm{{Source\ components\ ({branch_label})}}$")
+    ax.legend(fontsize=11)
+    style_plot(ax)
+    save_and_show("09b_source_components")
+
+    # ==========================================================
+    # 4. Local source vs flux (MAX 8 curves total)
     # ==========================================================
     max_curves = 8
     max_locations = max_curves // 2   # each location has Q and S
@@ -595,27 +897,28 @@ if extra_plots:
     for i, idx in enumerate(track_indices):
         color_idx = i % n_colors
 
-        Q_local = []
-        S_local = []
+        Q_local       = []
+        S_total_local = []
 
         for p in saved_p:
             p_x = np.gradient(p, dx)
             Q = flux_function(p_x, x, transport_params)
             Q_local.append(Q[idx])
-            S_local.append(source_fn(x, p)[idx])
+            S_net = source_fn(x, p)[idx] + physics_source(x, p)[idx]
+            S_total_local.append(S_net)
 
         ax.plot(times, Q_local,
                 label=f"Q @ x={x[idx]:.2f}",
                 color=colors[color_idx])
 
-        ax.plot(times, S_local,
+        ax.plot(times, S_total_local,
                 linestyle="--",
-                label=f"S @ x={x[idx]:.2f}",
+                label=r"$S_\mathrm{tot}$" + f" @ x={x[idx]:.2f}",
                 color=colors[color_idx])
 
     ax.set_xlabel("t")
-    ax.set_ylabel("Local flux / source")
-    ax.set_title(rf"$\mathrm{{Local\ Flux\ vs\ Source\ ({branch_label})}}$")
+    ax.set_ylabel("Local flux / net source")
+    ax.set_title(rf"$\mathrm{{Local\ Flux\ vs\ Net\ Source\ ({branch_label})}}$")
     ax.legend(ncol=2, fontsize=9)
     style_plot(ax)
     save_and_show("10_local_flux_vs_source")
@@ -675,15 +978,15 @@ if extra_plots:
     # 6. Edge gradient vs source
     # ==========================================================
     edge_gradient = [-np.gradient(p, dx)[-1] for p in saved_p]
-    edge_source = [source_fn(x, p)[-1] for p in saved_p]
+    edge_S_total  = [source_fn(x, p)[-1] + physics_source(x, p)[-1] for p in saved_p]
 
     fig, ax = plt.subplots()
-    ax.plot(times, edge_gradient, label="g at edge")
-    ax.plot(times, edge_source, linestyle="--", label="S at edge")
-    ax.axhline(g_crit, linestyle='--', label="g_crit")
+    ax.plot(times, edge_gradient, label=r"$g$ at edge")
+    ax.plot(times, edge_S_total,  linestyle="--", label=r"$S_\mathrm{total}$ at edge")
+    ax.axhline(g_crit, linestyle='--', label=r"$g_\mathrm{crit}$")
     ax.set_xlabel("t")
-    ax.set_ylabel("Edge gradient / source")
-    ax.set_title(rf"$\mathrm{{Edge\ gradient\ vs\ source\ ({branch_label})}}$")
+    ax.set_ylabel("Edge gradient / net source")
+    ax.set_title(rf"$\mathrm{{Edge\ gradient\ vs\ net\ source\ ({branch_label})}}$")
     ax.legend()
     style_plot(ax)
     save_and_show("13_edge_gradient_vs_source")
@@ -696,18 +999,21 @@ if extra_plots:
         p_x = np.gradient(p, dx)
         Q = flux_function(-p_x, x, transport_params)
 
-        F = np.array([
-            np.trapezoid(source_fn(x[:j+1], p[:j+1]), x[:j+1])
-            for j in range(len(x))
-        ])
+        F_ext   = np.array([np.trapezoid(source_fn(x[:j+1], p[:j+1]),     x[:j+1]) for j in range(len(x))])
+        F_alpha = np.array([np.trapezoid(alpha_heating(p[:j+1], transport_params),  x[:j+1]) for j in range(len(x))])
+        F_brem  = np.array([np.trapezoid(bremsstrahlung(p[:j+1], transport_params), x[:j+1]) for j in range(len(x))])
+        F_total = F_ext + F_alpha - F_brem
 
         fig, ax = plt.subplots()
-        ax.plot(x, Q, label="Q(x)")
-        ax.plot(x, F, linestyle="--", label=r"$\int_0^x S dx$")
+        ax.plot(x, Q,       color='k',  linewidth=2, label=r"$Q(x)$")
+        ax.plot(x, F_total, color='C1', linewidth=2, linestyle="-.", label=r"$\int_0^x S_\mathrm{total}$")
+        ax.plot(x, F_ext,   color='C0', linewidth=1.5, linestyle="--", label=r"$\int_0^x S_\mathrm{ext}$")
+        ax.plot(x, F_alpha, color='C2', linewidth=1.5, linestyle="--", label=r"$\int_0^x P_\alpha$")
+        ax.plot(x, -F_brem, color='C3', linewidth=1.5, linestyle="--", label=r"$-\int_0^x P_\mathrm{brem}$")
         ax.set_xlabel("x")
         ax.set_ylabel("Flux / cumulative source")
-        ax.set_title(f"Flux balance at t={times[snap_idx]:.3f}")
-        ax.legend()
+        ax.set_title(f"Flux balance at $t={times[snap_idx]:.3f}$")
+        ax.legend(fontsize=11)
         style_plot(ax)
         save_and_show(f"14_flux_balance_t{snap_idx}")
 
@@ -755,4 +1061,71 @@ if extra_plots:
 
     style_plot(ax)
     save_and_show("15_effective_diffusivity")
+
+    # ==========================================================
+    # 9. Controller diagnostics (only shown when controller active)
+    # ==========================================================
+
+    if source_controller is not None:
+        t_ctrl = np.array(source_controller.t_hist)
+
+        # ---- Plot 16: heating amplitudes vs time ----
+        fig, ax = plt.subplots()
+
+        if source_controller.core_mode != "off":
+            ax.plot(t_ctrl, source_controller.A_core_hist,
+                    color='C0', linewidth=1.5, label=r"$A_\mathrm{core}(t)$")
+        if source_controller.edge_mode != "off":
+            ax.plot(t_ctrl, source_controller.A_edge_hist,
+                    color='C1', linewidth=1.5, label=r"$A_\mathrm{edge}(t)$")
+
+        ax.set_xlabel(r"$t$")
+        ax.set_ylabel(r"Heating amplitude")
+        ax.set_title(r"$\mathrm{Controller:\ heating\ amplitudes}$")
+        ax.legend()
+        style_plot(ax)
+        save_and_show("16_controller_amplitudes")
+
+        # ---- Plot 17: observables vs targets ----
+        fig, axes = plt.subplots(1, 2, figsize=(10, 4))
+
+        ax_c, ax_e = axes
+
+        # Core observable
+        if source_controller.core_mode != "off":
+            ax_c.plot(t_ctrl, source_controller.obs_core_hist,
+                      color='C0', linewidth=1.5, label=r"observed")
+            if source_controller.core_target is not None:
+                ax_c.axhline(source_controller.core_target,
+                             color='C0', linestyle='--', linewidth=1.2,
+                             label=r"target")
+            ax_c.set_xlabel(r"$t$")
+            ax_c.set_ylabel(source_controller.core_target_type.replace("_", " "))
+            ax_c.set_title(r"$\mathrm{Core\ channel}$")
+            ax_c.legend()
+            style_plot(ax_c)
+        else:
+            ax_c.set_visible(False)
+
+        # Edge observable
+        if source_controller.edge_mode != "off":
+            ax_e.plot(t_ctrl, source_controller.obs_edge_hist,
+                      color='C1', linewidth=1.5, label=r"observed")
+            if source_controller.edge_target is not None:
+                ax_e.axhline(source_controller.edge_target,
+                             color='C1', linestyle='--', linewidth=1.2,
+                             label=r"target")
+            ax_e.axhline(g_crit, color='k', linestyle=':', linewidth=1.0,
+                         label=r"$g_\mathrm{crit}$")
+            ax_e.set_xlabel(r"$t$")
+            ax_e.set_ylabel(source_controller.edge_target_type.replace("_", " "))
+            ax_e.set_title(r"$\mathrm{Edge\ channel}$")
+            ax_e.legend()
+            style_plot(ax_e)
+        else:
+            ax_e.set_visible(False)
+
+        plt.suptitle(r"$\mathrm{Controller:\ observables\ vs\ targets}$", fontsize=14)
+        plt.tight_layout()
+        save_and_show("17_controller_observables")
 

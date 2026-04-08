@@ -5,7 +5,7 @@ import numpy as np
 # USER OPTIONS
 # ==========================================================
 
-TIME_SCHEME = "Euler"        # "Euler", "RK4", "CN"
+TIME_SCHEME = "RK4"        # "Euler", "RK4", "CN"
 SPACE_ORDER = 2              # 2 or 4
 PICARD_MAXITER = 100
 PICARD_TOL = 1e-6
@@ -127,6 +127,82 @@ def flux_function(g, x, params):
     return Q_total
 
 # ==========================================================
+# PHYSICS SOURCES (bremsstrahlung + alpha heating)
+# ==========================================================
+
+def sigma_v_DT(T_keV):
+    """
+    Bosch-Hale D-T fusion reactivity in m³/s.
+    Bosch & Hale, Nucl. Fusion 32 (1992), Table 4.  Valid 0.2–100 keV.
+    """
+    T     = np.maximum(np.asarray(T_keV, dtype=float), 0.2)
+    B_G   = 34.3827
+    mr_c2 = 1.124656e6
+    C1    = 1.17302e-9
+    C2, C3 = 1.51361e-2,  7.51886e-2
+    C4, C5 = 4.60643e-3,  1.35000e-2
+    C6, C7 = -1.06750e-4, 1.36600e-5
+    theta = T / (1.0 - T*(C2 + T*(C4 + T*C6)) / (1.0 + T*(C3 + T*(C5 + T*C7))))
+    xi    = (B_G**2 / (4.0 * theta))**(1.0 / 3.0)
+    sigv  = C1 * theta * np.sqrt(xi / (mr_c2 * T**3)) * np.exp(-3.0 * xi)
+    return sigv * 1.0e-6   # cm³/s → m³/s
+
+
+def alpha_heating(p, params):
+    """
+    Total D-T alpha heating for a single-pressure field.
+
+        P_α = 5.6e-13 J × ⟨σv⟩(T_keV) × n_D × n_T   [W/m³]
+
+    Temperature is inferred from the pressure via a fixed background density:
+        T_keV = (p / n_ref) × T_ref_keV
+
+    C_alpha encodes unit conversion and time-scale normalisation.
+    Set C_alpha = 0 (default) to disable.
+    """
+    C_alpha = params.get("C_alpha", 0.0)
+    if C_alpha <= 0.0:
+        return np.zeros_like(p)
+
+    T_ref   = params.get("T_ref_keV",  10.0)
+    n_ref   = params.get("n_ref",       1.0)
+    n_ref20 = params.get("n_ref_20",    1.0)
+    f_D     = params.get("f_deuterium", 0.5)
+    f_T     = params.get("f_tritium",   0.5)
+
+    T_keV  = p / max(n_ref, 1e-10) * T_ref
+    n_phys = n_ref * n_ref20 * 1.0e20   # m⁻³
+
+    n_D  = f_D * n_phys
+    n_T  = f_T * n_phys
+    sigv = sigma_v_DT(T_keV)
+    return C_alpha * 5.6e-13 * sigv * n_D * n_T
+
+
+def bremsstrahlung(p, params):
+    """
+    Bremsstrahlung radiation loss (electron power sink).
+
+        P_brem = 5.35e-3 × n² × Z_eff × √T_keV   [MW/m³]
+    with n in 10²⁰ m⁻³, T in keV.
+
+    Temperature is inferred via T_keV = (p / n_ref) × T_ref_keV.
+    C_brem encodes unit conversion and time-scale normalisation.
+    Set C_brem = 0 (default) to disable.
+    """
+    C_brem = params.get("C_brem", 0.0)
+    if C_brem <= 0.0:
+        return np.zeros_like(p)
+
+    Z_eff  = params.get("Z_eff",     1.0)
+    T_ref  = params.get("T_ref_keV", 10.0)
+    n_ref  = params.get("n_ref",      1.0)
+
+    T_keV = p / max(n_ref, 1e-10) * T_ref
+    return C_brem * n_ref**2 * Z_eff * np.sqrt(np.maximum(T_keV, 1e-10))
+
+
+# ==========================================================
 # FIRST DERIVATIVE (FIXED BOUNDARIES)
 # ==========================================================
 
@@ -233,7 +309,7 @@ def _apply_bc_to_profile(p_bc, dx, core_bc, edge_bc):
 # RHS
 # ==========================================================
 
-def compute_rhs(p, dx, x, p_ped, source_function, params):
+def compute_rhs(p, dx, x, p_ped, source_function, params, physics_source_function=None):
 
     core_bc, edge_bc = _get_bcs(params, p_ped)
 
@@ -267,53 +343,47 @@ def compute_rhs(p, dx, x, p_ped, source_function, params):
     else:
         dQdx[-1] = -Q_face[-1] / dx
 
-    S = source_function(x, p_bc)
+    # External (controllable) source — subject to power balance scaling
+    S_ext = source_function(x, p_bc)
+
+    # Physics source (alpha heating, radiation, etc.) — never rescaled
+    if physics_source_function is not None:
+        S_phys = physics_source_function(x, p_bc)
+    else:
+        S_phys = np.zeros_like(p_bc)
 
     # ---- Power balance enforcement ----
-    # Two modes available:
-    #   1. "global": rescale entire source field globally
-    #   2. "localized": add Gaussian heating at edge to satisfy power balance
+    # Only S_ext is scaled; S_phys is always added unmodified.
+    # Target:  ∫S_ext_scaled dx + ∫S_phys dx = power_balance × Q_edge
+    #
+    # "global":    rescale S_ext globally to hit target
+    # "localized": add edge Gaussian to S_ext to close the deficit
 
     heating_mode = params.get("heating_mode", "global")
     power_balance = params.get("power_balance", None)
 
     if heating_mode == "localized" and power_balance is not None:
-        # Edge-localized Gaussian heating computed to satisfy power balance
         Q_edge  = Q_face[-1]
-        total_S = np.trapezoid(S, x)
+        total_S = np.trapezoid(S_ext + S_phys, x)
+        deficit = power_balance * Q_edge - total_S
 
-        # Compute required deficit
-        required_integral = power_balance * Q_edge
-        deficit = required_integral - total_S
-
-        # Gaussian centered at edge
         L = x[-1]
         edge_sigma = params.get("edge_sigma", 0.05)
-
-        # Compute actual integral of Gaussian over domain [0, L]
-        # (not the full 2D integral, since Gaussian extends beyond x=L)
         gaussian_test = np.exp(-((x - L)**2) / (2 * edge_sigma**2))
         gaussian_norm = np.trapezoid(gaussian_test, x)
+        edge_amp = deficit / gaussian_norm if gaussian_norm > 0 else 0.0
 
-        # Amplitude needed to achieve deficit
-        if gaussian_norm > 0:
-            edge_amp = deficit / gaussian_norm
-        else:
-            edge_amp = 0
-
-        gaussian_edge = edge_amp * np.exp(-((x - L)**2) / (2 * edge_sigma**2))
-        S = S + gaussian_edge
+        S_ext = S_ext + edge_amp * gaussian_test
 
     elif heating_mode == "global" and power_balance is not None:
-        # Global rescaling of source
-        # params["power_balance"] = r  →  ∫S dx = r · Q_edge
-        #   r > 1 : source exceeds edge loss  (net heating)
-        #   r < 1 : edge loss exceeds source  (net cooling)
-        #   r = 1 : exact power balance
-        Q_edge  = Q_face[-1]
-        total_S = np.trapezoid(S, x)
-        if total_S > 0 and Q_edge > 0:
-            S = S * (power_balance * Q_edge / total_S)
+        Q_edge       = Q_face[-1]
+        total_S_ext  = np.trapezoid(S_ext,  x)
+        total_S_phys = np.trapezoid(S_phys, x)
+        target_S_ext = power_balance * Q_edge - total_S_phys
+        if total_S_ext > 0 and target_S_ext > 0:
+            S_ext = S_ext * (target_S_ext / total_S_ext)
+
+    S = S_ext + S_phys
 
     # Hyperviscosity (4th derivative)
     # --------------------------------------------------
@@ -336,16 +406,16 @@ def compute_rhs(p, dx, x, p_ped, source_function, params):
 # TIME STEPPING
 # ==========================================================
 
-def euler_step(p, dt, dx, x, p_ped, source_function, params):
-    return p + dt*compute_rhs(p, dx, x, p_ped, source_function, params)
+def euler_step(p, dt, dx, x, p_ped, source_function, params, physics_source_function=None):
+    return p + dt*compute_rhs(p, dx, x, p_ped, source_function, params, physics_source_function)
 
 
-def rk4_step(p, dt, dx, x, p_ped, source_function, params):
+def rk4_step(p, dt, dx, x, p_ped, source_function, params, physics_source_function=None):
 
-    k1 = compute_rhs(p, dx, x, p_ped, source_function, params)
-    k2 = compute_rhs(p + 0.5*dt*k1, dx, x, p_ped, source_function, params)
-    k3 = compute_rhs(p + 0.5*dt*k2, dx, x, p_ped, source_function, params)
-    k4 = compute_rhs(p + dt*k3, dx, x, p_ped, source_function, params)
+    k1 = compute_rhs(p,            dx, x, p_ped, source_function, params, physics_source_function)
+    k2 = compute_rhs(p+0.5*dt*k1,  dx, x, p_ped, source_function, params, physics_source_function)
+    k3 = compute_rhs(p+0.5*dt*k2,  dx, x, p_ped, source_function, params, physics_source_function)
+    k4 = compute_rhs(p+dt*k3,      dx, x, p_ped, source_function, params, physics_source_function)
 
     return p + dt*(k1 + 2*k2 + 2*k3 + k4)/6
 
@@ -358,7 +428,7 @@ import numpy as np
 import scipy.linalg
 
 
-def imex_step(p_old, dt, dx, x, p_ped, source_function, params):
+def imex_step(p_old, dt, dx, x, p_ped, source_function, params, physics_source_function=None):
 
     N = len(p_old)
 
@@ -387,17 +457,21 @@ def imex_step(p_old, dt, dx, x, p_ped, source_function, params):
     dQ_nl[0]    =  Q_nl[0]  / dx
     dQ_nl[-1]   = -Q_nl[-1] / dx
 
-    S = source_function(x, p_bc)
+    # External source (scaleable) and physics source (fixed)
+    S_ext  = source_function(x, p_bc)
+    S_phys = physics_source_function(x, p_bc) if physics_source_function is not None else np.zeros(N)
 
-    # Optional power-balance enforcement (same logic as compute_rhs)
+    # Power balance: scale only S_ext, same convention as compute_rhs
     power_balance = params.get("power_balance", None)
     if power_balance is not None:
-        Q_edge  = Q_full[-1]
-        total_S = np.trapezoid(S, x)
-        if total_S > 0 and Q_edge > 0:
-            S = S * (power_balance * Q_edge / total_S)
+        Q_edge       = Q_full[-1]
+        total_S_ext  = np.trapezoid(S_ext,  x)
+        total_S_phys = np.trapezoid(S_phys, x)
+        target_S_ext = power_balance * Q_edge - total_S_phys
+        if total_S_ext > 0 and target_S_ext > 0:
+            S_ext = S_ext * (target_S_ext / total_S_ext)
 
-    rhs_explicit = -dQ_nl + S
+    rhs_explicit = -dQ_nl + S_ext + S_phys
 
     # --------------------------------------------------
     # 2. Build banded matrix (row-based fill) and RHS
@@ -470,17 +544,16 @@ def imex_step(p_old, dt, dx, x, p_ped, source_function, params):
 # DISPATCH
 # ==========================================================
 
-def step(p, dt, dx, x, p_ped, source_function, params):
+def step(p, dt, dx, x, p_ped, source_function, params, physics_source_function=None):
 
     if TIME_SCHEME == "Euler":
-        p_new = euler_step(p, dt, dx, x, p_ped, source_function, params)
+        p_new = euler_step(p, dt, dx, x, p_ped, source_function, params, physics_source_function)
 
     elif TIME_SCHEME == "RK4":
-        p_new = rk4_step(p, dt, dx, x, p_ped, source_function, params)
+        p_new = rk4_step(p, dt, dx, x, p_ped, source_function, params, physics_source_function)
 
     elif TIME_SCHEME == "CN":
-        #p_new = cn_step(p, dt, dx, x, p_ped, source_function, params)
-        p_new = imex_step(p, dt, dx, x, p_ped, source_function, params)
+        p_new = imex_step(p, dt, dx, x, p_ped, source_function, params, physics_source_function)
     else:
         raise ValueError("Invalid TIME_SCHEME")
 
@@ -504,7 +577,22 @@ def solving_loop(
     source_function,
     num_snapshots,
     params,
+    physics_source_function=None,
+    source_controller=None,
 ):
+    """
+    Main time-integration loop.
+
+    Parameters
+    ----------
+    source_controller : object or None
+        If not None, must be callable as ``source_controller(x, p)`` returning
+        the external source array, and must expose:
+          - ``update(t, p, x, dt)``  — called each step before the RHS
+          - ``_record_snapshot()``   — called each time a snapshot is saved
+        When a controller is active it *replaces* ``source_function``; the
+        ``power_balance`` key in ``params`` is ignored (set it to None).
+    """
 
     N = len(p_init)
     x = np.linspace(0, L, N)
@@ -516,15 +604,27 @@ def solving_loop(
     saved = []
     save_counter = 0
 
+    # Choose which callable provides the external source
+    src_fn = source_controller if source_controller is not None else source_function
+
     for i in range(num_steps+1):
+
+        t = i * dt
 
         if i == save_indices[save_counter]:
             saved.append(p.copy())
+            if source_controller is not None:
+                source_controller._record_snapshot()
             save_counter = min(save_counter+1, len(save_indices)-1)
 
-        p = step(p, dt, dx, x, p_ped, source_function, params)
+        # Update controller *before* computing the RHS so the current step
+        # uses the freshly updated amplitudes.
+        if source_controller is not None:
+            source_controller.update(t, p, x, dt)
 
-        # ---- Diagnostic every 2000 steps ----
+        p = step(p, dt, dx, x, p_ped, src_fn, params, physics_source_function)
+
+        # ---- Diagnostic every 20000 steps ----
         if i % 20000 == 0:
             g = -(p[1:] - p[:-1]) / dx
             print(f"Step {i:6d} | max|g| = {np.max(np.abs(g)):.4f}")
