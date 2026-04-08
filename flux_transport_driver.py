@@ -236,7 +236,7 @@ x = np.linspace(0, L, int(L/dx))
 # ==========================================
 # Branch selection
 # ==========================================
-START_ON = "supercritical"
+START_ON = "subcritical"
 branch_label = START_ON
 
 # ==========================================
@@ -277,7 +277,7 @@ transport_params = {
 
     # ----- Power balance enforcement -----
     "heating_mode": "global",  # "global" or "localized"
-    "power_balance": 0.8,      # ratio of integrated source to edge flux
+    "power_balance": 0.6,      # < 1 → initial deficit: ∫S < Q_edge so ∫p dx falls first
     "edge_sigma": 0.05,        # width of edge-localized Gaussian heating (for localized mode)
 
     # ----- Physics sources -----
@@ -292,7 +292,7 @@ transport_params = {
     #   C_alpha = 1e-7 → ∫P_alpha ~ 0.03  (small perturbation on S_ext ~ 1)
     #   C_alpha = 1e-6 → ∫P_alpha ~ 0.3   (mild, ~30% of S_ext)
     #   C_alpha = 1e-5 → ∫P_alpha ~ 3     (dominant, approaching ignition regime)
-    "C_alpha":     1e-7,
+    "C_alpha":     1e-6,   # mild alpha heating — grows with T to eventually offset deficit
     "f_deuterium": 0.5,
     "f_tritium":   0.5,
     # Reference scales used to convert model p → physical T, n
@@ -319,7 +319,7 @@ g_crit = g_c / 2.0
 #           Set chi_MHD = 0.0 (or remove g_MHD) to disable entirely.
 # --------------------------------------------------
 transport_params["g_MHD"]   = 0.9 * g_c   # ~ 3.6 with default g_c = 4
-transport_params["chi_MHD"] = 20         # disabled by default; try 5–20
+transport_params["chi_MHD"] = 0.0        # disabled; enable (try 5–20) to cap supercritical blowup
 
 p_core = 2
 p_ped = 1
