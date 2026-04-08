@@ -120,7 +120,7 @@ def save_and_show(filename):
 L  = 1.0
 dx = 0.005
 dt = 5e-7
-T  = 0.5
+T  = 0.25
 num_snapshots = 8
 
 x = np.linspace(0, L, int(L / dx))
@@ -169,8 +169,8 @@ power_balance_mode = "initial_only"
 # ==========================================
 transport_params = {
     # Transport strength
-    "chi0":     10.0,
-    "chi_core": 10.0,   # outer linear regions — comparable to chi0 so flux is higher outside barrier
+    "chi0":     14.0,
+    "chi_core": 14.0,   # outer linear regions — comparable to chi0 so flux is higher outside barrier
     "chi_RR":   0.05,
 
     # Nonlinear model
@@ -212,7 +212,7 @@ transport_params = {
 
     # MHD stiff cliff (set chi_MHD = 0 to disable)
     # g_MHD set below after g_c is extracted
-    "chi_MHD": 10.0,
+    "chi_MHD": 20.0,
 }
 
 # ==========================================
@@ -248,7 +248,7 @@ profile_params = {"m": 2}
 if START_ON == "subcritical":
     target_g = 0.6 * g_crit
 elif START_ON == "supercritical":
-    target_g = 1.8 * g_crit
+    target_g = 1.95 * g_crit
 else:
     raise ValueError("START_ON must be 'subcritical' or 'supercritical'")
 
