@@ -228,7 +228,7 @@ def save_and_show(filename):
 L = 1.0
 dx = 0.005
 dt = 1e-6
-T = 0.5
+T = 1.0
 num_snapshots = 8
 
 x = np.linspace(0, L, int(L/dx))
@@ -273,17 +273,17 @@ transport_params = {
     # ----- Flux model per region -----
     "flux_models": ["nl"], #, "nl", "core", "nl"],   # Entire domain uses stiff core model
 
-    "nu4": 0,   # hyperviscosity strength (tune as needed)
+    "nu4": 1e-4,   # hyperviscosity: stabilizes falling-branch interface
 
     # ----- Power balance enforcement -----
     "heating_mode": "global",  # "global" or "localized"
-    "power_balance": 0.6,      # < 1 → initial deficit: ∫S < Q_edge so ∫p dx falls first
+    "power_balance": 0.95,      # < 1 → initial deficit: ∫S < Q_edge so ∫p dx falls first
     "edge_sigma": 0.05,        # width of edge-localized Gaussian heating (for localized mode)
 
     # ----- Physics sources -----
     # Bremsstrahlung radiation loss:  P_brem = C_brem × n_ref² × Z_eff × √T_keV
     #   C_brem = 0  disables; set ~0.03 for mild radiation at n~1, T~10 keV
-    "C_brem":      0.03,
+    "C_brem":      0.01,
     "Z_eff":       1.0,
     # Alpha heating:  P_α = C_alpha × ⟨σv⟩(T_keV) × n_D × n_T
     #   C_alpha = 0  disables.
@@ -292,7 +292,7 @@ transport_params = {
     #   C_alpha = 1e-7 → ∫P_alpha ~ 0.03  (small perturbation on S_ext ~ 1)
     #   C_alpha = 1e-6 → ∫P_alpha ~ 0.3   (mild, ~30% of S_ext)
     #   C_alpha = 1e-5 → ∫P_alpha ~ 3     (dominant, approaching ignition regime)
-    "C_alpha":     1e-6,   # mild alpha heating — grows with T to eventually offset deficit
+    "C_alpha":     4e-6,   # mild alpha heating — grows with T to eventually offset deficit
     "f_deuterium": 0.5,
     "f_tritium":   0.5,
     # Reference scales used to convert model p → physical T, n
@@ -319,7 +319,7 @@ g_crit = g_c / 2.0
 #           Set chi_MHD = 0.0 (or remove g_MHD) to disable entirely.
 # --------------------------------------------------
 transport_params["g_MHD"]   = 0.9 * g_c   # ~ 3.6 with default g_c = 4
-transport_params["chi_MHD"] = 20        # disabled; enable (try 5–20) to cap supercritical blowup
+transport_params["chi_MHD"] = 2        # disabled; enable (try 5–20) to cap supercritical blowup
 
 p_core = 2
 p_ped = 1
@@ -336,7 +336,7 @@ g_shape = -p_x_shape
 max_g_shape = np.max(g_shape)
 
 if START_ON == "subcritical":
-    target_g = 0.6 * g_crit
+    target_g = 1.6 * g_crit      # edge in unstable zone (g* < g < g_c)
 elif START_ON == "supercritical":
     target_g = 1.8 * g_crit
 else:
@@ -1009,9 +1009,9 @@ if extra_plots:
     save_and_show("13_edge_gradient_vs_source")
 
     # ==========================================================
-    # 7. Flux profile vs cumulative source (very informative)
+    # 7. Flux profile vs cumulative source (every snapshot)
     # ==========================================================
-    for snap_idx in [-2, -1]:  # last 2 snapshots only
+    for snap_idx in range(len(saved_p)):
         p = saved_p[snap_idx]
         p_x = np.gradient(p, dx)
         Q = flux_function(-p_x, x, transport_params)
@@ -1032,52 +1032,66 @@ if extra_plots:
         ax.set_title(f"Flux balance at $t={times[snap_idx]:.3f}$")
         ax.legend(fontsize=11)
         style_plot(ax)
-        save_and_show(f"14_flux_balance_t{snap_idx}")
+        save_and_show(f"14_flux_balance_snap{snap_idx:02d}")
 
     # ==========================================================
-    # 8. Effective diffusivity profile (final snapshot)
+    # 8. Effective diffusivity evolution (selected snapshots)
     # ==========================================================
 
-    p = saved_p[-1]
-    p_x = np.gradient(p, dx)
-    g = -p_x
-
-    # Small perturbation for numerical derivative
     eps = 1e-6
+    # Show ~6 evenly spaced snapshots including first and last
+    chi_snap_indices = np.linspace(0, len(saved_p) - 1, min(6, len(saved_p)), dtype=int)
 
-    Q_plus  = flux_function(g + eps, x, transport_params)
-    Q_minus = flux_function(g - eps, x, transport_params)
-
-    chi_eff = (Q_plus - Q_minus) / (2 * eps)
-
-    # ----------------------------------------------------------
-    # Plot
-    # ----------------------------------------------------------
     fig, ax = plt.subplots()
 
-    ax.plot(x, chi_eff, label=r"$\chi_{\mathrm{eff}}(x)$")
+    for si in chi_snap_indices:
+        p = saved_p[si]
+        g = -np.gradient(p, dx)
+        Q_plus  = flux_function(g + eps, x, transport_params)
+        Q_minus = flux_function(g - eps, x, transport_params)
+        chi_eff = (Q_plus - Q_minus) / (2 * eps)
+        ax.plot(x, chi_eff, label=rf"$t={times[si]:.3f}$")
 
-    # Plot boundaries if present
     boundaries = transport_params.get("boundaries", [])
-
     for i, xb in enumerate(boundaries):
-        ax.axvline(
-            xb,
-            linestyle="--",
-            linewidth=1.2,
-            alpha=0.6,
-            label=r"$x={:.2f}$".format(xb) if i == 0 else None
-        )
+        ax.axvline(xb, linestyle="--", linewidth=1.2, alpha=0.6)
 
     ax.set_xlabel("x")
     ax.set_ylabel(r"$\chi_{\mathrm{eff}}$")
-    ax.set_title("Effective diffusivity profile (final state)")
-
-    if boundaries:
-        ax.legend()
-
+    ax.set_title(rf"$\mathrm{{Effective\ diffusivity\ evolution\ ({branch_label})}}$")
+    ax.legend(ncol=2, fontsize=10)
     style_plot(ax)
     save_and_show("15_effective_diffusivity")
+
+    # ==========================================================
+    # 8b. Q(g) phase diagram — snapshots on the theoretical curve
+    # ==========================================================
+
+    # Theoretical Q(g) curve
+    g_theory = np.linspace(0, 1.5 * g_c, 500)
+    Q_theory = flux_function(g_theory, np.full_like(g_theory, 0.5), transport_params)
+
+    fig, ax = plt.subplots()
+    ax.plot(g_theory, Q_theory, color='k', linewidth=2, label=r"$Q(g)$ theory")
+    ax.axvline(g_crit, linestyle=':', color='gray', linewidth=1, label=r"$g^*$")
+    ax.axvline(g_c,    linestyle='--', color='gray', linewidth=1, label=r"$g_c$")
+
+    # Overlay snapshots (same selection as chi_eff)
+    cmap = cm.viridis
+    for idx, si in enumerate(chi_snap_indices):
+        p = saved_p[si]
+        g_local = -np.gradient(p, dx)
+        Q_local = flux_function(np.maximum(g_local, 0), x, transport_params)
+        color = cmap(idx / max(len(chi_snap_indices) - 1, 1))
+        ax.scatter(g_local[1:-1], Q_local[1:-1], s=8, color=color,
+                   label=rf"$t={times[si]:.3f}$", zorder=3)
+
+    ax.set_xlabel(r"$g = -\partial_x p$")
+    ax.set_ylabel(r"$Q(g)$")
+    ax.set_title(rf"$\mathrm{{Phase\ diagram\ Q(g)\ ({branch_label})}}$")
+    ax.legend(ncol=2, fontsize=9)
+    style_plot(ax)
+    save_and_show("16_Qg_phase_diagram")
 
     # ==========================================================
     # 9. Controller diagnostics (only shown when controller active)
@@ -1086,7 +1100,7 @@ if extra_plots:
     if source_controller is not None:
         t_ctrl = np.array(source_controller.t_hist)
 
-        # ---- Plot 16: heating amplitudes vs time ----
+        # ---- Plot 17: heating amplitudes vs time ----
         fig, ax = plt.subplots()
 
         if source_controller.core_mode != "off":
@@ -1101,7 +1115,7 @@ if extra_plots:
         ax.set_title(r"$\mathrm{Controller:\ heating\ amplitudes}$")
         ax.legend()
         style_plot(ax)
-        save_and_show("16_controller_amplitudes")
+        save_and_show("17_controller_amplitudes")
 
         # ---- Plot 17: observables vs targets ----
         fig, axes = plt.subplots(1, 2, figsize=(10, 4))
@@ -1144,5 +1158,5 @@ if extra_plots:
 
         plt.suptitle(r"$\mathrm{Controller:\ observables\ vs\ targets}$", fontsize=14)
         plt.tight_layout()
-        save_and_show("17_controller_observables")
+        save_and_show("18_controller_observables")
 

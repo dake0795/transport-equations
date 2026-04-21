@@ -644,6 +644,7 @@ def solving_loop(
         # ---- Diagnostic every 20000 steps ----
         if i % 20000 == 0:
             g = -(p[1:] - p[:-1]) / dx
-            print(f"Step {i:6d} | max|g| = {np.max(np.abs(g)):.4f}")
+            int_p = np.trapezoid(p, x)
+            print(f"Step {i:6d} | max|g| = {np.max(np.abs(g)):.4f} | ∫p dx = {int_p:.4f}")
 
     return np.array(saved)
