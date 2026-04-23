@@ -60,7 +60,7 @@ T = 0.2
 num_video_frames  = 300   # total frames saved from solver (videos + time-series)
 num_plot_snapshots = 8    # subset shown on static overlay plots
 
-x = np.linspace(0, L, int(L/dx))
+x = np.linspace(0, L, int(L/dx)+1)
 
 # ==========================================
 # Branch selection

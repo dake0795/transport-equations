@@ -113,7 +113,7 @@ T  = 0.2
 num_video_frames  = 300
 num_plot_snapshots = 8
 
-x = np.linspace(0, L, int(L / dx))
+x = np.linspace(0, L, int(L / dx)+1)
 
 # ==========================================
 # Initial state control
