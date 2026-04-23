@@ -114,6 +114,7 @@ num_video_frames  = 300
 num_plot_snapshots = 8
 
 x = np.linspace(0, L, int(L / dx)+1)
+dx = x[1] - x[0]  #if L/dx is not an integer the dx will change slightly
 
 # ==========================================
 # Initial state control
