@@ -28,3 +28,6 @@ plots/
 # OS
 .DS_Store
 *.tmp
+
+# Changed inputs
+inputs.json
