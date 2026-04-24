@@ -4,6 +4,44 @@ Two solvers sharing the same nonlinear flux model structure. Previous iterations
 
 ---
 
+### Quick start (run as a package)
+
+This code is packaged so you can import and run the drivers from **any directory**. The package exports two entry points:
+
+- `run_single` — single-field driver
+- `run_two_species` — two-species driver
+
+1) **Install (editable recommended)** from the repository root:
+
+```bash
+pip install -e .
+```
+
+2) **Create a run directory** and (optionally) copy a template `inputs.json` into it.
+
+Templates live in `templates/` and must be renamed to **`inputs.json`** in your run directory:
+
+```bash
+mkdir -p my_run
+cp templates/inputs_single_driver_default.json my_run/inputs.json   # or inputs_two_species_driver_default.json
+```
+
+3) **Run from that directory**. If `inputs.json` is present in the current working directory, it will be used to override default parameters. If you do not pass `config_file`, the drivers auto-detect `./inputs.json` when it exists.
+
+```bash
+cd my_run
+python -c "from transport_equations import run_single; run_single()"
+# or
+python -c "from transport_equations import run_two_species; run_two_species()"
+```
+
+4) **Disable plotting / video generation** (useful on clusters or headless runs):
+
+```bash
+python -c "from transport_equations import run_single; run_single(do_plots=False, do_videos=False)"
+```
+
+
 ## Overview
 
 | Driver | Model | Fields | Gradient type | Features |
@@ -158,3 +196,4 @@ Previous solver iterations are in `archive/`:
 - `flux_transport_model.py` / `flux_transport_driver.py` — single-field with PI/schedule controller
 - `flux_transport_model_coupled.py` / `flux_transport_driver_coupled.py` — coupled p + n (single species)
 - `flux_transport_model_two_species.py` / `flux_transport_driver_two_species.py` — four-field (p_e, n_e, p_i, n_i) with PI power balance
+
