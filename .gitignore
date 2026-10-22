@@ -28,3 +28,6 @@ plots/
 # OS
 .DS_Store
 *.tmp
+research/scan_pb_*.npz
+research/*.log
+research/__pycache__/
