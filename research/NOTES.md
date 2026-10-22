@@ -183,3 +183,11 @@ profile, independent of the IC's details; (iii) the order of magnitude of
 the transient barrier's lifetime when it must collapse; (iv) with
 self-heating, whether the transient lives long enough for P_alpha to lift
 S above Q_M (the ignition access condition).
+
+## 2026-10-22: t3d_like.py (draft, not converged)
+Two-channel model with T3D's channel structure (turbulent branches stabilised by the total gradient, RR-type
+g_e^3 electron branch, linear neoclassical ion branch, collisional exchange, Stix alpha split, brems/synchrotron
+sinks), to ask whether a steady state exists without a cliff and whether the burn saturates without a sink.
+The integrator stalls at N = 101 (BDF + sparse Jacobian, banded LSODA); the g_e^3 branch and the smoothed face
+gradients leave a grid-scale mode the hyperviscosity does not damp. Next: implicit treatment of the RR branch
+or a coarser grid with nu4 scaled to keep the front at ~2 cells.
