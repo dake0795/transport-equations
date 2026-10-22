@@ -157,3 +157,29 @@ falling-branch part of the initial profile reorganises.
 5. Connects to Lebedev & Diamond (1997) and Malkov & Diamond (2008) on
    Maxwell-rule selection of transport-barrier fronts, and to Radko (2003)
    / Balmforth et al. on staircases.
+
+## 9. What the initial condition predicts (added later on 22 Oct)
+
+Two tests of the front rule as a predictor from the IC (physics off,
+conservative nu4, S_tot = 8 in the bistable window, x_M = 0.196):
+
+* **Nucleation radius.**  A subcritical base profile plus one local
+  supercritical patch.  Patches holding ~0.5 units of pressure drop
+  (high-phase slab ~0.09 after local phase separation, i.e. wider than the
+  front, ~0.04) nucleate the full barrier (W = 4.39, foot at 0.193) iff they
+  sit at x > x_M; at x = 0.12 and 0.17 they dissolve.  Patches holding
+  ~0.1 units (slab ~0.02, thinner than the front) never nucleate anywhere:
+  a critical-nucleus condition.  Large patches that extend past x_M
+  nucleate even when centred inside it.
+* **Transient barrier lifetime** when S < Q_M, from the supercritical IC:
+  measured t_gone = 0.18, 0.33, 1.05, 2.65 for S = 1.51, 3.78, 5.29, 5.67;
+  the estimate (W_0 - W_L)/(Q_M - S) gives 0.25, 0.45, 1.51, 4.50.  Right
+  divergence ~1/(Q_M - S), overestimates by 1.4-1.7 because part of the
+  stored energy is released after the barrier is gone.
+
+So from an IC one can predict: (i) the end state, given S and whether a
+sufficiently large supercritical patch lies beyond x_M; (ii) the final
+profile, independent of the IC's details; (iii) the order of magnitude of
+the transient barrier's lifetime when it must collapse; (iv) with
+self-heating, whether the transient lives long enough for P_alpha to lift
+S above Q_M (the ignition access condition).
