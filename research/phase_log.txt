@@ -1,0 +1,77 @@
+# F calibration on es_hkbm_F_frozen (Z_eff 0, frozen), t > 0.5 s; reference profile at t = 2.00 s: W 1112 MJ, N 1740e20, Tbar 13.30 keV
+  bookkeeping t=0: 3/2 int n(Te+Ti) dV = 800.6 vs logged 800.4 MJ
+  P_alpha: Bosch-Hale on the profile 636.8 vs logged 637.2 MW -> c_alpha = 1.0006
+  brem per unit Z at the reference profile c_r = 50.7 MW (40.6 at t = 0 in the paper)
+  incremental resistances R_k (keV/MW) [0.0046 0.012  0.0093 0.0066 0.0046 0.0032 0.0017 0.0017 0.0003]
+  eta_c (incremental) [1.   0.99 0.9  0.76 0.59 0.42 0.26 0.15 0.02 0.  ];  1/L' = Phi_0 = 1.04 s
+  eta_c (secant dT/Q)  [1.   0.97 0.9  0.78 0.64 0.5  0.38 0.27 0.06 0.  ]
+  eta_aux 0.250 (secant 0.328), eta_rad 0.524 (secant 0.586), eta_alpha 0.708 (secant 0.743)
+  d ln Tbar / d ln N at a fixed temperature profile, density added in the run's ramp pattern: x' = -0.345
+  reference: T_e(0.85) = 3.10 Q_edge^0.088; at the pass-through Q = 236 MW T_e(0.85) = 5.02 keV; Dirichlet mean 3.07
+  floor of the barrier loss T_b = 3.068 keV (Dirichlet); d ln theta / d ln N at a fixed profile = -0.448
+  L = C sgn(theta)|theta/theta_ref|^mu (N/N_ref)^nu, theta = Tbar - T_b, nu = -mu dln theta/dlnN -> C 392.4 MW, mu 2.49, nu 1.12 (rms 12.2 MW);  band: nu = 0 -> C 395.2, mu 2.91 (rms 9.8); nu doubled -> C 390.3, mu 2.18, nu 1.95 (rms 14.0)
+  particles: S_N inside 0.9 = 79.3e20/s; Gamma(0.9) = 27.4 (N/N_ref)^2.64 (hKBM on, hot branch)
+  check on the calibration run: model dW/dt - run dW/dt: mean +24.6, rms 8.6 MW; model Q_edge - run: rms 13.5 MW; P_alpha model/run 1.007
+# H/I calibration on I (EC only), t > 0.5 s; reference at t = 1.00 s: W 664, N 1574, Tbar 8.78
+  bookkeeping t=0: 658.0 vs logged 657.9 MJ
+  eta_c (secant; the I run is too steady for the incremental fit) [1.   0.95 0.78 0.61 0.35 0.  ]
+  EC per cell [ 5.6 12.5 35.8 72.9 11.9  1.9], QRAD per cell [ 4.8 15.4 25.4 36.  53.3 93.1] (last cell Dirichlet)
+  eta_EC 0.669, eta_QRAD 0.351 (fixed sink, 228 MW of which 135 in the evolved cells), eta_alpha 0.702
+  L: mu = 2.49 (from F), T_b = 4.82 keV (I's Dirichlet values), C = 196.1 MW at Tbar_ref (rms of L over I 3.9); I's dN/dt = 79.5e20/s (held: S_N - Gamma = const)
+  check on I: model dW/dt - run: mean +4.7 MW; P_alpha model/run at t=0 0.957
+  d ln P_alpha / d ln Tbar at I's state = 2.26 vs mu = 2.49
+# time scales (F, model at the run states)
+  es_hkbm_F_frozen: at t 4.68: gamma_th(fixed N) = -0.751/s (tau_th 1.33 s); tau_N = N/(dN/dt) = 40.5 s; eps = 0.033
+  es_hkbm_F_frozen_brem_z6: at t 4.42: gamma_th(fixed N) = -0.144/s (tau_th 6.96 s); tau_N = N/(dN/dt) = 40.1 s; eps = 0.173
+  es_hkbm_F_rev_z20_to_z6: at t 3.28: gamma_th(fixed N) = +0.038/s (tau_th 26.48 s); tau_N = N/(dN/dt) = 43.9 s; eps = 0.604
+  along the run path: d(eta P)/dW = 0.74, dL/dW = 0.92 MW/MJ -> path rate -0.18/s
+  at fixed N (W = 1200, N = 1786): d(eta_al P_alpha)/dW = 0.69, dL/dW = 1.26 -> gamma_th = -0.57/s; m = dlnL/dlnW = 3.20, n = dlnP_alpha/dlnW = 1.61
+# fold of the burning branch and onset of the cold root, vs N (Z_eff at which they occur)
+  N = 1673: hot root up to Z = 7.8, cold root from Z = 5.5  [nu=0: 8.6/5.5; nu doubled: 7.3/5.3]
+  N = 1767: hot root up to Z = 7.8, cold root from Z = 4.9  [nu=0: 8.7/5.0; nu doubled: 6.9/4.8]
+  N = 1850: hot root up to Z = 7.7, cold root from Z = 4.5  [nu=0: 8.9/4.6; nu doubled: 6.6/4.4]
+  N = 1950: hot root up to Z = 7.7, cold root from Z = 4.1  [nu=0: 9.2/4.1; nu doubled: 6.4/4.0]
+  N = 2100: hot root up to Z = 7.8, cold root from Z = 3.6  [nu=0: 9.7/3.6; nu doubled: 6.0/3.5]
+  N = 2300: hot root up to Z = 8.0, cold root from Z = 3.0  [nu=0: 10.5/3.0; nu doubled: 5.7/3.0]
+# predictions (no refit): ODE from the member's own (W, N) at t_s; W at the member's last time
+  member | Z | t_s | run W(t_s) | run t_end, W_end | model W(t_end) | model branch | run trend | model from the input (t=0)
+  es_hkbm_F_frozen              0.0 0.50    918 | 4.68   1345 |   1378 -> hot |   +75 MJ/s |   1410; model W(20 s) 1967
+  es_hkbm_F_frozen_brem         3.4 0.50    879 | 4.92   1221 |   1227 -> hot |   +63 MJ/s |   1247; model W(20 s) 1790
+  es_hkbm_F_frozen_brem_z6      6.0 0.50    848 | 4.42   1020 |   1008 -> hot |   +42 MJ/s |    998; model W(20 s) 1594
+  es_hkbm_F_frozen_brem_z6.5    6.5 0.50    843 | 0.74    857 |    850 -> hot |   +55 MJ/s |    823; model W(20 s) 1535
+  es_hkbm_F_frozen_brem_z7      7.0 0.50    836 | 0.63    842 |    838 -> hot |   +50 MJ/s |    812; model W(20 s) 1418
+  es_hkbm_F_frozen_brem_z8      8.0 0.50    824 | 0.76    832 |    823 -> cold |   +30 MJ/s |    798; model W(20 s) 55
+  es_hkbm_F_frozen_brem_z10    10.0 0.50    799 | 4.44    564 |    539 -> collapse (no root above) |  -116 MJ/s |    477; model W(20 s) 52
+  es_hkbm_F_frozen_brem_z12    12.0 0.50    773 | 3.41    433 |    456 -> collapse (no root above) |  -157 MJ/s |    410; model W(20 s) 50
+  es_hkbm_F_frozen_brem_z15    15.0 0.50    730 | 3.72    191 |    194 -> collapse (no root above) |   -72 MJ/s |    168; model W(20 s) 46
+  es_hkbm_F_frozen_brem_z20    20.0 0.50    678 | 2.50    181 |    168 -> collapse (no root above) |  -114 MJ/s |    166; model W(20 s) 49
+  es_hkbm_F_rev_z20_to_z3.4     3.4 1.48    392 | 3.41    550 |    440 -> hot |   +65 MJ/s |    nan; re-ignites at 16.9 s; model W(20 s) 1596
+  es_hkbm_F_rev_z20_to_z5       5.0 1.48    391 | 3.33    465 |    378 -> cold |   +15 MJ/s |    nan; model W(20 s) 99
+  es_hkbm_F_rev_z20_to_z6       6.0 1.48    391 | 3.28    427 |    345 -> cold |    -3 MJ/s |    nan; model W(20 s) 56
+  es_hkbm_F_frozen_paux0        0.0 0.51    874 | 4.52   1203 |   1232 -> hot |   +71 MJ/s |   1257; model W(20 s) 1896
+# slow manifold: run W vs W*(N(t)) (leading order) and W* + (dW*/dN)(dN/dt)/gamma_th (first order)
+  es_hkbm_F_frozen: t 1.0: run 995, W* 1259, W*+lag 1201, tau_th 1.1 s; t 2.0: run 1114, W* 1312, W*+lag 1256, tau_th 1.1 s; t 3.0: run 1208, W* 1364, W*+lag 1310, tau_th 1.0 s; t 4.7: run 1345, W* 1447, W*+lag 1398, tau_th 1.0 s
+  es_hkbm_F_frozen_brem: t 1.0: run 933, W* 1147, W*+lag 1073, tau_th 1.5 s; t 2.0: run 1018, W* 1195, W*+lag 1125, tau_th 1.5 s; t 3.0: run 1093, W* 1243, W*+lag 1175, tau_th 1.4 s; t 4.9: run 1221, W* 1331, W*+lag 1270, tau_th 1.4 s
+  es_hkbm_F_frozen_brem_z6: t 1.0: run 880, W* 1024, W*+lag 919, tau_th 2.5 s; t 2.0: run 916, W* 1067, W*+lag 964, tau_th 2.4 s; t 3.0: run 959, W* 1110, W*+lag 1011, tau_th 2.4 s; t 4.4: run 1020, W* 1169, W*+lag 1076, tau_th 2.3 s
+  es_hkbm_F_frozen_paux0: t 1.0: run 926, W* 1160, W*+lag 1073, tau_th 1.5 s; t 2.0: run 1015, W* 1217, W*+lag 1137, tau_th 1.4 s; t 3.0: run 1093, W* 1272, W*+lag 1198, tau_th 1.4 s; t 4.5: run 1203, W* 1353, W*+lag 1287, tau_th 1.3 s
+# folds in N at fixed Z, normal form fW = a (N - N_f) - b (W - W_f)^2, slow passage t_d = 2.338 (a r b)^-1/3
+  Z 7.8 (base) hot root is lost at N_f = 1773, W_f = 852 MJ; a = 0.014 MW/1e20, b = 6.95e-04 MW/MJ^2, dN/dt = 50.5/s -> t_d = 29.87 s (tau_N = 35 s, eps ~ 0.061, eps^(2/3) tau_N = 5.4 s)
+  Z 8.0 (base) hot root is lost at N_f = 1602, W_f = 730 MJ; a = 0.037 MW/1e20, b = 6.67e-04 MW/MJ^2, dN/dt = 57.2/s -> t_d = 20.86 s (tau_N = 28 s, eps ~ 0.089, eps^(2/3) tau_N = 5.6 s)
+  Z 6.5 (nu doubled) hot root is lost at N_f = 1912, W_f = 937 MJ; a = 0.077 MW/1e20, b = 5.55e-04 MW/MJ^2, dN/dt = 44.1/s -> t_d = 18.89 s (tau_N = 43 s, eps ~ 0.058, eps^(2/3) tau_N = 6.5 s)
+  Z 7.0 (nu doubled) hot root is lost at N_f = 1752, W_f = 851 MJ; a = 0.085 MW/1e20, b = 5.44e-04 MW/MJ^2, dN/dt = 51.4/s -> t_d = 17.49 s (tau_N = 34 s, eps ~ 0.082, eps^(2/3) tau_N = 6.4 s)
+  Z 3.4 (base) cold root appears at N_f = 2145, W_f = 390 MJ; a = 0.073 MW/1e20, b = 5.01e-04 MW/MJ^2, dN/dt = 31.7/s -> t_d = 22.24 s (tau_N = 68 s, eps ~ 0.105, eps^(2/3) tau_N = 15.0 s)
+  Z 4.0 (base) cold root appears at N_f = 1968, W_f = 371 MJ; a = 0.080 MW/1e20, b = 5.26e-04 MW/MJ^2, dN/dt = 41.4/s -> t_d = 19.45 s (tau_N = 48 s, eps ~ 0.158, eps^(2/3) tau_N = 13.9 s)
+  Z 5.0 (base) cold root appears at N_f = 1746, W_f = 349 MJ; a = 0.090 MW/1e20, b = 5.53e-04 MW/MJ^2, dN/dt = 51.6/s -> t_d = 17.10 s (tau_N = 34 s, eps ~ 0.245, eps^(2/3) tau_N = 13.3 s)
+  Z 5.0 at N 1920, hot-shape closures: roots 191s, 545u, 1283s
+  Z 5.0 at N 1920, cold-shape closures: roots 160s, 408u, 1680s
+  Z 6.0 at N 1920, hot-shape closures: roots 121s, 654u, 1219s
+  Z 6.0 at N 1920, cold-shape closures: roots 62s, 482u, 1661s
+  Z 10.0 at N 1920, hot-shape closures: roots 
+  Z 10.0 at N 1920, cold-shape closures: roots 648u, 1577s
+  z10 from its last state with the cold-shape closures: W(10 s) 55, W(30 s) 55
+# H and I (one knob: the imported radiation)
+  I: roots at N 1522: W 671 (stable); model from t=0 W(1.59) = 710 vs run 690; model fW at start +16 MW
+  H: roots at N 1522: W 590 (stable); model from t=0 W(1.43) = 638 vs run 400; model fW at start -64 MW
+  I: run W vs hot root W*(N_run(t)): t 0.10: N 1521, W 653, W* 670; t 0.20: N 1524, W 650, W* 672; t 0.30: N 1528, W 649, W* 674; t 0.50: N 1537, W 649, W* 679; t 1.01: N 1574, W 664, W* 702; t 1.59: N 1621, W 690, W* 731
+  H: run W vs hot root W*(N_run(t)): t 0.10: N 1518, W 639, W* 587; t 0.20: N 1501, W 618, W* 577; t 0.31: N 1342, W 490, W* 490; t 0.50: N 1273, W 425, W* 455; t 1.00: N 1259, W 404, W* 448; t 1.43: N 1258, W 400, W* 448
+  H/I: the hot root exists up to a QRAD multiplier of 1.48 (H = 1.00, I = 0)
