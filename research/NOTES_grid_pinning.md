@@ -37,3 +37,17 @@ conservative nu4 = 5e-4, physics off. Model: Q_M = 5.85, upper-branch minimum Q_
   - In between: the window is between those two limits.
 - **Next:** measure the pinning window [S_lo(dx), Q_M] directly by bisection in S per N. That would give the paper a figure:
   the window width against dx/w.
+
+**Pinning window, measured (24 Oct 12:47, exp_pinning_window.py; pinning_window.out, pinning_window_nu4_0.out).**
+Lowest S at which a built barrier keeps > 1/2 of its W excess:
+
+| dx/w | 20 | 11 | 5.3 | 3.4 | 2.0 | 1.4 | 1.0 | 0.5 |
+|---|---|---|---|---|---|---|---|---|
+| S_lo/Q_M (nu4 = 5e-4) | 0.32 | 0.30 | 0.34 | 0.43 | 0.66 | 0.82 | 0.94 | 1.00 |
+
+- With nu4 = 0: S_lo/Q_M = 0.23 (N = 10), 0.19 (50) and 0.20 (200). That is the fold (Q_min/Q_M = 0.17) at EVERY resolution. The front is one cell wide however
+  fine the grid, so refining never brings Q_M back.
+- Q_M needs dx <= w/2 with an explicit front scale w. A solver with no front scale (T3D) is pinned down to the barrier tube's fold.
+- Paper: sec:solver paragraph and fig_pinning (a586d4b).
+- Implication for the finer-grid T3D run of SPP3 without radiation (10 tubes, pre-registered 11:03): this model predicts the barrier holds, i.e.
+  reading A or C, not B. That conclusion came AFTER the registration and is recorded as an addendum, not an edit.
