@@ -1,0 +1,19 @@
+Q_M = 5.851, Q_min(upper) = 1.0; S_tests [0.7, 2.0, 3.5, 5.0, 6.5]
+N=   6 dx=0.200  (barrier built: g_edge 6.04)
+   S=0.7: g_edge  0.04 lost    W 1.018
+   S=2.0: g_edge  4.05 BARRIER W 1.762
+   S=3.5: g_edge  4.45 BARRIER W 1.860
+   S=5.0: g_edge  4.85 BARRIER W 1.960
+   S=6.5: g_edge  5.25 BARRIER W 2.061
+N=  10 dx=0.111  (barrier built: g_edge 6.97)
+   S=0.7: g_edge  0.05 lost    W 1.025
+   S=2.0: g_edge  4.24 BARRIER W 1.823
+   S=3.5: g_edge  4.79 BARRIER W 1.961
+   S=5.0: g_edge  5.34 BARRIER W 2.102
+   S=6.5: g_edge  5.89 BARRIER W 2.246
+N=  20 dx=0.053  (barrier built: g_edge 7.58)
+   S=0.7: g_edge  0.06 lost    W 1.030
+   S=2.0: g_edge  4.37 BARRIER W 1.686
+   S=3.5: g_edge  5.02 BARRIER W 1.997
+   S=5.0: g_edge  5.66 BARRIER W 2.164
+   S=6.5: g_edge  6.31 BARRIER W 2.338
