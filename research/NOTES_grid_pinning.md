@@ -53,5 +53,6 @@ Lowest S at which a built barrier keeps > 1/2 of its W excess:
   reading A or C, not B. That conclusion came AFTER the registration and is recorded as an addendum, not an edit.
 - Window closure (fit over dx/w = 1-3.4, excluding the saturated coarse points): 1 - S_lo/Q_M = 1.59 exp(-3.19 w/dx); residuals < 0.05.
   At dx/w = 0.5 the fit gives 0.003, against a measured 0.00. The exponent is close to pi; no theory claimed (an empirical fit). Paper sec:solver.
-- In T3D (q-burn case, hKBM, 24 Oct 13:35): hyperviscosity 2e-4 on 9 tubes, or 21 tubes, moves the ion barrier from rho 0.8 to the outermost tube;
-  W agrees to 2 % (t3d.tex).
+- In T3D (q-burn case, hKBM; CORRECTED 24 Oct 15:50): every run starts with the ion step in the outermost tube (a/L_Ti 7.9 at 0.9). On 9 tubes without
+  hyperviscosity it moves IN to 0.8 between 0.2 and 0.3 s. With hyperviscosity 2e-4, or on 21 tubes, it stays at the edge. W agrees to 2 %. So the position
+  depends on the discretisation; this is NOT evidence of 'pinned where formed' (the coarse run moved one tube). t3d.tex 8102860.
