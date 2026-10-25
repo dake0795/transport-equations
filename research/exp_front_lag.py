@@ -32,16 +32,32 @@ for S_from, S_to in ((S_hi, S_lo), (S_lo, S_hi)):
     t = post["t"]; xf, Qfr, gin, gout = [], [], [], []
     for pk in post["p"]:
         Qf, xface = m.compute_face_flux(pk, dx, x, R.P_PED, P)
+        # total face flux = Q(g) + nu4 p_xxx (the conservative hyperviscous flux of reduced.make_rhs); inside the front Q(g)
+        # sits near the bump top and the hyperviscous part carries the rest, so Q(g) alone is not the flux through the front
+        pb = pk.copy(); pb[0] = pb[1]; pb[-1] = R.P_PED
+        F = np.zeros(len(pb) - 1); F[1:-1] = (pb[3:] - 3 * pb[2:-1] + 3 * pb[1:-2] - pb[:-3]) / dx ** 3
+        Qf = Qf + P["nu4"] * F
         g = -(pk[1:] - pk[:-1]) / dx
         i = np.where(g > gstar)[0][0]
-        xf.append(xface[i]); Qfr.append(Qf[i]); gin.append(g[max(i - K, 0)]); gout.append(g[min(i + K, len(g) - 1)])
+        xf.append(xface[i]); Qfr.append(Qf[max(i - K, 0)]); gin.append(g[max(i - K, 0)]); gout.append(g[min(i + K, len(g) - 1)])   # flux just inside the front
     xf, Qfr, gin, gout = map(np.array, (xf, Qfr, gin, gout))
-    law = lambda Qfun, jump: solve_ivp(lambda tt, y: [-(Qfun(tt, float(y[0])) - QM) / (float(y[0]) * jump(tt))], (0, t[-1]), [xf[0]], t_eval=t, rtol=1e-8).y[0]
+    def law(Qfun, jump):
+        # The front law dx_f/dt = -(Q - Q_M)/(x_f [g]) is singular at x_f = 0: stop when the predicted front reaches the
+        # axis or the edge (terminal events) and report the rest as NaN.  Without the events RK45 chatters about x_f = 0
+        # for ever (the 23-25 Oct runs that never finished).
+        hit = lambda tt, y: min(y[0] - 0.02, 0.98 - y[0])
+        hit.terminal = True
+        sol = solve_ivp(lambda tt, y: [-(Qfun(tt, float(y[0])) - QM) / (float(y[0]) * jump(tt))], (0, t[-1]), [xf[0]],
+                        t_eval=t, rtol=1e-8, events=hit)
+        out = np.full(len(t), np.nan); out[:len(sol.y[0])] = sol.y[0]
+        return out
     Qmeas = lambda tt, xx: np.interp(tt, t, Qfr); jmeas = lambda tt: np.interp(tt, t, gout - gin)
     la = law(lambda tt, xx: Qss(xx, S_to), lambda tt: gb - ga)
     lb = law(Qmeas, lambda tt: gb - ga)
     lc = law(Qmeas, jmeas)
-    half = lambda a: t[np.argmax(np.abs(a - a[0]) > 0.5 * abs(a[-1] - a[0]))]
+    def half(a):
+        a = a[np.isfinite(a)]
+        return t[np.argmax(np.abs(a - a[0]) > 0.5 * abs(a[-1] - a[0]))] if len(a) > 1 else np.nan
     print(f"\nS {S_from:.2f} -> {S_to:.2f}: x_f {xf[0]:.3f} -> {xf[-1]:.3f}; half-times: measured {half(xf):.3f}, law(a) Q_ss & Maxwell jump {half(la):.3f}, "
           f"(b) measured Q_front & Maxwell jump {half(lb):.3f}, (c) measured Q_front & measured jump {half(lc):.3f}")
     print("   t      x_f    Q_ss(x_f)  Q_front   g_in   g_out   v_meas   v_law(a)  v_law(c)")
