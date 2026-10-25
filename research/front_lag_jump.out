@@ -1,0 +1,210 @@
+
+==================== chi_MHD = 2.0: Q_M = 5.8514, g_a = 0.7063, g_b = 6.3666, [g] = 5.660; S_lo = 7.561, S_hi = 9.451; x_M(S_hi) = 0.1586, x_M(S_lo) = 0.2193 (discrete axis x0 = dx/2 = 0.0025)
+   reduced-model runs: 3.5 s
+
+--- chi_MHD = 2.0, step down (front out): S 9.45 -> 7.56
+   x_G 0.1603 -> 0.2172 (x_M 0.1586 -> 0.2193);  x_foot 0.1490 -> 0.2057;  x_mid 0.1580 -> 0.2151
+   energy balance of each region (t > 0.01, max abs residual): core 3.63e-15, pedestal 3.43e-15;  jump condition V[g] - [p_t]: max 1.93e-01 (lattice jerks; scale of [p_t] 4.63), median relative 0.000 (0.01 < t < 0.3)
+   at the half-time: p_t^+/p_t^- = 0.47, H_ped/H_core = 1.56, (mu_G - Q_M)/(Q_ss - Q_M) = -0.071, C/H_core = -0.032
+     t      x_G     V      [g]   mu_G-Q_M  p_t^-  x p_t^-  H_core  Qss-Q_M  p_t^+   H_ped   sigma   C      dW_in   dW_out  Q_edge
+   0.002  0.1613 +0.439  5.671  +0.0337   -7.05  -1.119  -1.143  -1.109   -4.55  -0.726   5.26  -0.0233  +2.178  -4.047  9.344
+   0.010  0.1658 +0.567  5.678  +0.0518   -6.44  -1.051  -1.062  -1.010   -3.41  -0.806   3.53  -0.0105  +3.195  -5.063  9.344
+   0.020  0.1706 +0.472  5.678  +0.0528   -5.68  -0.955  -0.958  -0.906   -3.00  -0.900   2.76  -0.0035  +2.552  -4.410  9.334
+   0.040  0.1772 +0.121  5.648  -0.0377   -4.07  -0.710  -0.729  -0.767   -3.39  -1.064   2.62  -0.0187  +0.158  -1.951  9.269
+   0.070  0.1849 +0.240  5.677  +0.0507   -3.60  -0.656  -0.662  -0.612   -2.24  -0.967   1.88  -0.0061  +1.068  -2.698  9.105
+   0.100  0.1897 +0.214  5.678  +0.0522   -3.04  -0.569  -0.571  -0.518   -1.82  -0.876   1.69  -0.0016  +0.951  -2.398  8.923
+   0.150  0.1957 +0.125  5.675  +0.0440   -2.30  -0.445  -0.448  -0.404   -1.59  -0.714   1.80  -0.0028  +0.425  -1.587  8.638
+   0.200  0.1997 +0.146  5.677  +0.0506   -1.92  -0.380  -0.382  -0.331   -1.09  -0.545   1.61  -0.0020  +0.625  -1.552  8.402
+   0.300  0.2065 +0.033  5.666  +0.0164   -1.10  -0.224  -0.227  -0.211   -0.91  -0.360   2.01  -0.0036  -0.005  -0.582  8.063
+   0.500  0.2122 +0.004  5.648  -0.0351   -0.38  -0.079  -0.080  -0.115   -0.36  -0.160   1.76  -0.0007  -0.056  -0.184  7.715
+   1.000  0.2171 +0.000  5.651  -0.0266   -0.04  -0.008  -0.008  -0.034   -0.03  -0.016   1.74  -0.0001  -0.006  -0.018  7.499
+   law end point 0.2193 vs x_G end 0.2172;  all-terms law end 0.2172
+   half-times (accounting; each row adds the measured term to the law):
+     measured x_G             0.0966   (ratio to law 2.57)
+     measured x_foot          0.0969   (ratio to law 2.58)
+     measured x_mid           0.0968   (ratio to law 2.58)
+     law                      0.0376
+     +ped                     0.1041   fraction of lag +1.13
+     +ped+front flux          0.0969   fraction of lag +1.01
+     +ped+front flux+core     0.0967   fraction of lag +1.00
+     +all (+[g])              0.0968   fraction of lag +1.00
+     front flux+core only     0.0344   fraction of lag -0.05
+   models from x_M(S_from) = 0.1586.  Pedestal at x_M(S_to): Gamma = S l/D = 6.022 (Gamma/[g] = 1.064), D_ped = 2.050, tau_p = l^2/3D = 0.0991 (paper's l^2/pi^2 D = 0.0301); tau_f = 0.0776;  eta(0) = +0.2538 against [g] |dx_M| = 0.3433; core time x_M^2/pi^2 Q'(g_a) = 0.00075
+     Stefan law (paper)                               half-time 0.0372   model/measured 0.38   fraction of lag +0.00   end 0.2193
+     ODE tau_p=l2/3D                                  half-time 0.1073   model/measured 1.11   fraction of lag +1.18   end 0.2193
+     ODE tau_p=4l2/pi2D                               half-time 0.0958   model/measured 0.99   fraction of lag +0.99   end 0.2193
+     ODE tau_p=l2/pi2D                                half-time 0.1275   model/measured 1.32   fraction of lag +1.52   end 0.2193
+     ODE tau_p=0                                      half-time 0.1205   model/measured 1.25   fraction of lag +1.40   end 0.2193
+     ODE tau_p=l2/3D, eta0=0                          half-time 0.0575   model/measured 0.60   fraction of lag +0.34   end 0.2193
+     sharp: PDE ped (qs new S at t=0) + lumped core   half-time 0.0623   model/measured 0.64   fraction of lag +0.42   end 0.2193
+     sharp: PDE ped + lumped core                     half-time 0.1011   model/measured 1.05   fraction of lag +1.08   end 0.2193
+     sharp: PDE ped + PDE core                        half-time 0.1028   model/measured 1.06   fraction of lag +1.11   end 0.2193
+   LAG BUDGET (sharp-interface models; measured lag 0.0594 = 2.60x law):  pedestal readjustment to the moving front +0.42;  pedestal response to the source change +0.65;  core +0.03;  remainder (front interior, discreteness) -0.11
+   heating rates, measured (reduced model, at x_G) vs sharp two-phase model (PDE ped + PDE core, at its own front):
+     t      x_G     x_sh    p_t^- meas  sharp   p_t^+ meas  sharp   ODE(l2/3D)   H_ped meas  sharp
+     0.005  0.1624  0.1612   -6.573   -6.894    -4.023   -3.731    -2.464       -0.829   -0.756
+     0.020  0.1706  0.1688   -5.681   -5.591    -2.997   -3.092    -2.831       -0.900   -0.913
+     0.050  0.1806  0.1790   -4.179   -4.086    -2.521   -2.606    -2.787       -0.997   -1.014
+     0.100  0.1897  0.1886   -3.040   -2.873    -1.825   -2.058    -2.243       -0.876   -0.909
+     0.200  0.1997  0.1990   -1.925   -1.737    -1.094   -1.286    -1.345       -0.545   -0.586
+     0.400  0.2110  0.2101   -0.820   -0.718    -0.518   -0.508    -0.501       -0.197   -0.228
+
+--- chi_MHD = 2.0, step up (front in): S 7.56 -> 9.45
+   x_G 0.2172 -> 0.1603 (x_M 0.2193 -> 0.1586);  x_foot 0.2057 -> 0.1490;  x_mid 0.2151 -> 0.1580
+   energy balance of each region (t > 0.01, max abs residual): core 3.89e-15, pedestal 3.12e-15;  jump condition V[g] - [p_t]: max 2.46e-01 (lattice jerks; scale of [p_t] 6.28), median relative 0.001 (0.01 < t < 0.3)
+   at the half-time: p_t^+/p_t^- = 0.50, H_ped/H_core = 1.24, (mu_G - Q_M)/(Q_ss - Q_M) = +0.036, C/H_core = -0.032
+     t      x_G     V      [g]   mu_G-Q_M  p_t^-  x p_t^-  H_core  Qss-Q_M  p_t^+   H_ped   sigma   C      dW_in   dW_out  Q_edge
+   0.002  0.2163 -0.527  5.667  +0.0197   +6.21  +1.329  +1.384  +1.403   +3.42  +0.485   5.52  +0.0548  -2.044  +3.913  7.476
+   0.010  0.2110 -0.541  5.670  +0.0291   +5.91  +1.232  +1.265  +1.294   +3.04  +0.603   3.98  +0.0328  -2.286  +4.154  7.476
+   0.020  0.2051 -0.496  5.672  +0.0367   +5.58  +1.130  +1.131  +1.168   +2.73  +0.728   2.98  +0.0011  -2.154  +4.013  7.485
+   0.040  0.1954 -0.352  5.674  +0.0412   +4.72  +0.911  +0.910  +0.951   +2.73  +0.892   2.46  -0.0015  -1.461  +3.263  7.542
+   0.070  0.1858 -0.183  5.674  +0.0420   +3.68  +0.674  +0.678  +0.721   +2.64  +0.980   2.20  +0.0042  -0.577  +2.235  7.686
+   0.100  0.1800 -0.122  5.675  +0.0456   +2.97  +0.527  +0.531  +0.576   +2.28  +0.956   1.95  +0.0039  -0.320  +1.807  7.858
+   0.150  0.1743 -0.084  5.677  +0.0498   +2.22  +0.381  +0.379  +0.429   +1.74  +0.824   1.75  -0.0019  -0.218  +1.421  8.141
+   0.200  0.1705 -0.042  5.676  +0.0481   +1.66  +0.280  +0.279  +0.327   +1.43  +0.678   1.75  -0.0001  -0.022  +0.980  8.387
+   0.300  0.1659 -0.015  5.674  +0.0416   +0.99  +0.162  +0.163  +0.204   +0.91  +0.434   1.74  +0.0004  +0.049  +0.548  8.747
+   0.500  0.1615 -0.004  5.667  +0.0207   +0.37  +0.060  +0.060  +0.080   +0.35  +0.171   1.73  +0.0002  +0.032  +0.199  9.113
+   1.000  0.1605 -0.001  5.676  +0.0484   +0.03  +0.005  +0.005  +0.054   +0.03  +0.014   1.71  +0.0000  -0.000  +0.020  9.325
+   law end point 0.1586 vs x_G end 0.1603;  all-terms law end 0.1603
+   half-times (accounting; each row adds the measured term to the law):
+     measured x_G             0.0598   (ratio to law 1.95)
+     measured x_foot          0.0594   (ratio to law 1.94)
+     measured x_mid           0.0596   (ratio to law 1.94)
+     law                      0.0306
+     +ped                     0.0602   fraction of lag +1.02
+     +ped+front flux          0.0599   fraction of lag +1.00
+     +ped+front flux+core     0.0600   fraction of lag +1.01
+     +all (+[g])              0.0600   fraction of lag +1.01
+     front flux+core only     0.0301   fraction of lag -0.02
+   models from x_M(S_from) = 0.2193.  Pedestal at x_M(S_to): Gamma = S l/D = 11.706 (Gamma/[g] = 2.068), D_ped = 2.050, tau_p = l^2/3D = 0.1151 (paper's l^2/pi^2 D = 0.0350); tau_f = 0.0310;  eta(0) = -0.1378 against [g] |dx_M| = 0.3433; core time x_M^2/pi^2 Q'(g_a) = 0.00039
+     Stefan law (paper)                               half-time 0.0310   model/measured 0.52   fraction of lag +0.00   end 0.1586
+     ODE tau_p=l2/3D                                  half-time 0.0542   model/measured 0.91   fraction of lag +0.81   end 0.1586
+     ODE tau_p=4l2/pi2D                               half-time 0.0490   model/measured 0.82   fraction of lag +0.63   end 0.1586
+     ODE tau_p=l2/pi2D                                half-time 0.0861   model/measured 1.44   fraction of lag +1.91   end 0.1586
+     ODE tau_p=0                                      half-time 0.0972   model/measured 1.63   fraction of lag +2.30   end 0.1586
+     ODE tau_p=l2/3D, eta0=0                          half-time 0.0410   model/measured 0.69   fraction of lag +0.35   end 0.1586
+     sharp: PDE ped (qs new S at t=0) + lumped core   half-time 0.0461   model/measured 0.77   fraction of lag +0.53   end 0.1586
+     sharp: PDE ped + lumped core                     half-time 0.0583   model/measured 0.98   fraction of lag +0.95   end 0.1586
+     sharp: PDE ped + PDE core                        half-time 0.0596   model/measured 1.00   fraction of lag +0.99   end 0.1586
+   LAG BUDGET (sharp-interface models; measured lag 0.0287 = 1.93x law):  pedestal readjustment to the moving front +0.53;  pedestal response to the source change +0.42;  core +0.05;  remainder (front interior, discreteness) +0.01
+   heating rates, measured (reduced model, at x_G) vs sharp two-phase model (PDE ped + PDE core, at its own front):
+     t      x_G     x_sh    p_t^- meas  sharp   p_t^+ meas  sharp   ODE(l2/3D)   H_ped meas  sharp
+     0.005  0.2146  0.2161   +6.267   +6.457    +2.784   +2.484    +1.642       +0.541   +0.469
+     0.020  0.2051  0.2063   +5.577   +5.775    +2.730   +2.434    +2.181       +0.728   +0.664
+     0.050  0.1914  0.1922   +4.311   +4.556    +2.931   +2.480    +2.569       +0.923   +0.887
+     0.100  0.1800  0.1795   +2.968   +3.152    +2.278   +2.179    +2.337       +0.956   +0.932
+     0.200  0.1705  0.1693   +1.664   +1.763    +1.427   +1.416    +1.489       +0.678   +0.671
+     0.400  0.1640  0.1624   +0.666   +0.656    +0.505   +0.549    +0.543       +0.260   +0.268
+
+==================== chi_MHD = 20.0: Q_M = 8.1716, g_a = 1.1317, g_b = 3.9972, [g] = 2.865; S_lo = 9.882, S_hi = 11.772; x_M(S_hi) = 0.1853, x_M(S_lo) = 0.2474 (discrete axis x0 = dx/2 = 0.0025)
+   reduced-model runs: 2.4 s
+
+--- chi_MHD = 20.0, step down (front out): S 11.77 -> 9.88
+   x_G 0.1867 -> 0.2485 (x_M 0.1853 -> 0.2474);  x_foot 0.1821 -> 0.2437;  x_mid 0.1883 -> 0.2501
+   energy balance of each region (t > 0.01, max abs residual): core 3.40e-15, pedestal 4.02e-15;  jump condition V[g] - [p_t]: max 1.65e-01 (lattice jerks; scale of [p_t] 5.09), median relative 0.000 (0.01 < t < 0.3)
+   at the half-time: p_t^+/p_t^- = 0.28, H_ped/H_core = 0.52, (mu_G - Q_M)/(Q_ss - Q_M) = -0.081, C/H_core = +0.061
+     t      x_G     V      [g]   mu_G-Q_M  p_t^-  x p_t^-  H_core  Qss-Q_M  p_t^+   H_ped   sigma   C      dW_in   dW_out  Q_edge
+   0.002  0.1893 +1.204  2.866  -0.0035   -5.60  -1.047  -1.208  -1.211   -2.17  -0.652   2.70  -0.1609  +4.021  -5.880  11.629
+   0.010  0.1997 +0.994  2.869  -0.0273   -4.33  -0.853  -0.932  -0.959   -1.64  -0.654   2.01  -0.0787  +3.321  -4.906  11.355
+   0.020  0.2093 +0.553  2.867  -0.0132   -2.96  -0.611  -0.725  -0.738   -1.37  -0.507   2.14  -0.1133  +1.620  -2.851  11.001
+   0.040  0.2226 +0.544  2.859  +0.0436   -2.12  -0.467  -0.502  -0.458   -0.56  -0.237   1.86  -0.0349  +1.772  -2.510  10.508
+   0.070  0.2337 +0.198  2.864  +0.0104   -0.92  -0.214  -0.251  -0.241   -0.36  -0.126   2.17  -0.0375  +0.565  -0.941  10.146
+   0.100  0.2394 +0.063  2.869  -0.0255   -0.40  -0.095  -0.112  -0.138   -0.22  -0.086   1.96  -0.0171  +0.147  -0.344  9.968
+   0.150  0.2442 +0.019  2.868  -0.0171   -0.13  -0.031  -0.036  -0.053   -0.08  -0.031   1.85  -0.0048  +0.040  -0.107  9.837
+   0.200  0.2461 +0.088  2.862  +0.0271   -0.21  -0.052  -0.049  -0.022   +0.04  +0.014   2.00  +0.0034  +0.309  -0.343  9.804
+   0.300  0.2484 +0.002  2.863  +0.0202   -0.01  -0.003  -0.003  +0.017   -0.01  -0.002   1.83  -0.0004  +0.005  -0.011  9.775
+   0.500  0.2485 +0.000  2.863  +0.0181   -0.00  -0.000  -0.000  +0.018   -0.00  -0.000    nan  -0.0000  +0.000  -0.000  9.770
+   1.000  0.2485 -0.000  2.863  +0.0181   +0.00  +0.000  +0.000  +0.018   +0.00  +0.000    nan  +0.0000  -0.000  +0.000  9.770
+   law end point 0.2474 vs x_G end 0.2485;  all-terms law end 0.2485
+   half-times (accounting; each row adds the measured term to the law):
+     measured x_G             0.0311   (ratio to law 1.54)
+     measured x_foot          0.0312   (ratio to law 1.55)
+     measured x_mid           0.0311   (ratio to law 1.54)
+     law                      0.0202
+     +ped                     0.0293   fraction of lag +0.83
+     +ped+front flux          0.0293   fraction of lag +0.83
+     +ped+front flux+core     0.0312   fraction of lag +1.01
+     +all (+[g])              0.0312   fraction of lag +1.00
+     front flux+core only     0.0219   fraction of lag +0.15
+   models from x_M(S_from) = 0.1853.  Pedestal at x_M(S_to): Gamma = S l/D = 0.630 (Gamma/[g] = 0.220), D_ped = 20.005, tau_p = l^2/3D = 0.0094 (paper's l^2/pi^2 D = 0.0029); tau_f = 0.0419;  eta(0) = +0.0201 against [g] |dx_M| = 0.1778; core time x_M^2/pi^2 Q'(g_a) = 0.00141
+     Stefan law (paper)                               half-time 0.0200   model/measured 0.64   fraction of lag +0.00   end 0.2474
+     ODE tau_p=l2/3D                                  half-time 0.0293   model/measured 0.94   fraction of lag +0.84   end 0.2474
+     ODE tau_p=4l2/pi2D                               half-time 0.0290   model/measured 0.93   fraction of lag +0.81   end 0.2474
+     ODE tau_p=l2/pi2D                                half-time 0.0295   model/measured 0.95   fraction of lag +0.85   end 0.2474
+     ODE tau_p=0                                      half-time 0.0291   model/measured 0.94   fraction of lag +0.82   end 0.2474
+     ODE tau_p=l2/3D, eta0=0                          half-time 0.0255   model/measured 0.82   fraction of lag +0.49   end 0.2474
+     sharp: PDE ped (qs new S at t=0) + lumped core   half-time 0.0253   model/measured 0.81   fraction of lag +0.48   end 0.2474
+     sharp: PDE ped + lumped core                     half-time 0.0290   model/measured 0.93   fraction of lag +0.81   end 0.2474
+     sharp: PDE ped + PDE core                        half-time 0.0315   model/measured 1.01   fraction of lag +1.04   end 0.2474
+   LAG BUDGET (sharp-interface models; measured lag 0.0111 = 1.55x law):  pedestal readjustment to the moving front +0.48;  pedestal response to the source change +0.34;  core +0.22;  remainder (front interior, discreteness) -0.04
+   heating rates, measured (reduced model, at x_G) vs sharp two-phase model (PDE ped + PDE core, at its own front):
+     t      x_G     x_sh    p_t^- meas  sharp   p_t^+ meas  sharp   ODE(l2/3D)   H_ped meas  sharp
+     0.005  0.1938  0.1923   -5.090   -5.522    -1.832   -1.606    -1.775       -0.654   -0.638
+     0.020  0.2093  0.2081   -2.955   -3.457    -1.371   -1.090    -1.158       -0.507   -0.463
+     0.050  0.2271  0.2258   -1.773   -1.645    -0.369   -0.456    -0.444       -0.167   -0.189
+     0.100  0.2394  0.2389   -0.402   -0.582    -0.220   -0.136    -0.126       -0.086   -0.055
+     0.200  0.2461  0.2460   -0.214   -0.091    +0.038   -0.020    -0.016       +0.014   -0.008
+     0.400  0.2485  0.2473   -0.000   -0.003    -0.000   -0.001    -0.000       -0.000   -0.000
+
+--- chi_MHD = 20.0, step up (front in): S 9.88 -> 11.77
+   x_G 0.2485 -> 0.1867 (x_M 0.2474 -> 0.1853);  x_foot 0.2437 -> 0.1821;  x_mid 0.2501 -> 0.1883
+   energy balance of each region (t > 0.01, max abs residual): core 4.11e-15, pedestal 3.10e-15;  jump condition V[g] - [p_t]: max 2.08e-01 (lattice jerks; scale of [p_t] 5.72), median relative 0.000 (0.01 < t < 0.3)
+   at the half-time: p_t^+/p_t^- = 0.32, H_ped/H_core = 0.53, (mu_G - Q_M)/(Q_ss - Q_M) = +0.040, C/H_core = +0.093
+     t      x_G     V      [g]   mu_G-Q_M  p_t^-  x p_t^-  H_core  Qss-Q_M  p_t^+   H_ped   sigma   C      dW_in   dW_out  Q_edge
+   0.002  0.2457 -1.957  2.865  +0.0066   +6.31  +1.533  +1.523  +1.529   +0.73  +0.338   1.62  -0.0108  -6.411  +8.272  9.777
+   0.010  0.2330 -1.202  2.862  +0.0240   +4.72  +1.088  +1.237  +1.261   +1.31  +0.441   2.27  +0.1481  -3.718  +5.396  9.960
+   0.020  0.2207 -1.299  2.864  +0.0100   +4.56  +0.995  +0.962  +0.972   +0.85  +0.436   1.52  -0.0329  -4.463  +5.861  10.240
+   0.040  0.2041 -0.501  2.866  -0.0057   +2.32  +0.468  +0.550  +0.544   +0.90  +0.328   2.19  +0.0821  -1.581  +2.459  10.760
+   0.070  0.1930 -0.167  2.860  +0.0380   +0.93  +0.177  +0.192  +0.230   +0.45  +0.193   1.88  +0.0155  -0.530  +0.915  11.253
+   0.100  0.1885 -0.051  2.862  +0.0264   +0.35  +0.064  +0.071  +0.097   +0.20  +0.088   1.85  +0.0061  -0.151  +0.310  11.480
+   0.150  0.1872 -0.013  2.859  +0.0454   +0.06  +0.012  +0.013  +0.058   +0.03  +0.013   1.76  +0.0006  -0.044  +0.070  11.613
+   0.200  0.1868 -0.004  2.859  +0.0428   +0.02  +0.003  +0.003  +0.046   +0.01  +0.002   1.79  +0.0001  -0.015  +0.020  11.632
+   0.300  0.1867 -0.000  2.860  +0.0408   +0.00  +0.000  +0.000  +0.041   +0.00  +0.000    nan  +0.0000  -0.002  +0.002  11.638
+   0.500  0.1867 -0.000  2.860  +0.0406   +0.00  +0.000  +0.000  +0.041   +0.00  +0.000    nan  +0.0000  -0.000  +0.000  11.638
+   1.000  0.1867 -0.000  2.860  +0.0406   -0.00  -0.000  -0.000  +0.041   +0.00  +0.000    nan  +0.0000  -0.000  +0.000  11.638
+   law end point 0.1853 vs x_G end 0.1867;  all-terms law end 0.1867
+   half-times (accounting; each row adds the measured term to the law):
+     measured x_G             0.0231   (ratio to law 1.35)
+     measured x_foot          0.0230   (ratio to law 1.35)
+     measured x_mid           0.0231   (ratio to law 1.35)
+     law                      0.0171
+     +ped                     0.0216   fraction of lag +0.75
+     +ped+front flux          0.0212   fraction of lag +0.69
+     +ped+front flux+core     0.0231   fraction of lag +1.00
+     +all (+[g])              0.0231   fraction of lag +1.00
+     front flux+core only     0.0180   fraction of lag +0.15
+   models from x_M(S_from) = 0.2474.  Pedestal at x_M(S_to): Gamma = S l/D = 1.248 (Gamma/[g] = 0.435), D_ped = 20.025, tau_p = l^2/3D = 0.0110 (paper's l^2/pi^2 D = 0.0034); tau_f = 0.0171;  eta(0) = -0.0102 against [g] |dx_M| = 0.1778; core time x_M^2/pi^2 Q'(g_a) = 0.00079
+     Stefan law (paper)                               half-time 0.0170   model/measured 0.74   fraction of lag +0.00   end 0.1853
+     ODE tau_p=l2/3D                                  half-time 0.0220   model/measured 0.95   fraction of lag +0.82   end 0.1853
+     ODE tau_p=4l2/pi2D                               half-time 0.0216   model/measured 0.94   fraction of lag +0.76   end 0.1853
+     ODE tau_p=l2/pi2D                                half-time 0.0233   model/measured 1.01   fraction of lag +1.04   end 0.1853
+     ODE tau_p=0                                      half-time 0.0237   model/measured 1.03   fraction of lag +1.11   end 0.1853
+     ODE tau_p=l2/3D, eta0=0                          half-time 0.0203   model/measured 0.88   fraction of lag +0.54   end 0.1853
+     sharp: PDE ped (qs new S at t=0) + lumped core   half-time 0.0203   model/measured 0.88   fraction of lag +0.55   end 0.1853
+     sharp: PDE ped + lumped core                     half-time 0.0220   model/measured 0.95   fraction of lag +0.82   end 0.1853
+     sharp: PDE ped + PDE core                        half-time 0.0239   model/measured 1.03   fraction of lag +1.13   end 0.1853
+   LAG BUDGET (sharp-interface models; measured lag 0.0061 = 1.36x law):  pedestal readjustment to the moving front +0.55;  pedestal response to the source change +0.27;  core +0.31;  remainder (front interior, discreteness) -0.13
+   heating rates, measured (reduced model, at x_G) vs sharp two-phase model (PDE ped + PDE core, at its own front):
+     t      x_G     x_sh    p_t^- meas  sharp   p_t^+ meas  sharp   ODE(l2/3D)   H_ped meas  sharp
+     0.005  0.2407  0.2400   +6.132   +5.587    +0.758   +1.075    +1.176       +0.385   +0.388
+     0.020  0.2207  0.2203   +4.562   +4.135    +0.852   +1.061    +1.137       +0.436   +0.420
+     0.050  0.1990  0.1988   +1.742   +1.893    +0.735   +0.643    +0.640       +0.270   +0.274
+     0.100  0.1885  0.1880   +0.346   +0.411    +0.200   +0.163    +0.141       +0.088   +0.072
+     0.200  0.1868  0.1854   +0.017   +0.017    +0.005   +0.007    +0.005       +0.002   +0.003
+     0.400  0.1867  0.1853   +0.000   +0.000    +0.000   +0.000    +0.000       +0.000   +0.000
+
+==================== SUMMARY (half-times; fractions of the measured lag t_meas - t_Stefan)
+   chi  step  t_meas  t_Stefan  ratio | ODE l2/3D  4l2/pi2D  l2/pi2D | sharp 2-phase | budget: ped(front motion) ped(source) core remainder | accounting: ped  front-flux  core
+      2 down  0.0966  0.0372   2.60 |  1.11     0.99     1.32   |  1.06        |   +0.42  +0.65  +0.03  -0.11        |   +1.13  -0.12  -0.00
+      2 up    0.0598  0.0310   1.93 |  0.91     0.82     1.44   |  1.00        |   +0.53  +0.42  +0.05  +0.01        |   +1.02  -0.01  +0.00
+     20 down  0.0311  0.0200   1.55 |  0.94     0.93     0.95   |  1.01        |   +0.48  +0.34  +0.22  -0.04        |   +0.83  +0.00  +0.17
+     20 up    0.0231  0.0170   1.36 |  0.95     0.94     1.01   |  1.03        |   +0.55  +0.27  +0.31  -0.13        |   +0.75  -0.07  +0.32
+   (ODE and sharp columns: model half-time / measured half-time)
+
+==================== resolution and front width: measured half-times of x_G
+   chi_MHD =    2, dx = 0.00503, nu4 = 5.00e-04 (5 s): down: x_G 0.1603->0.2172, half 0.0966, law 0.0376, max|mu_G-Q_M| 0.061;  up: x_G 0.2172->0.1603, half 0.0598, law 0.0306, max|mu_G-Q_M| 0.069
+   chi_MHD =    2, dx = 0.00251, nu4 = 5.00e-04 (10 s): down: x_G 0.1578->0.2160, half 0.0956, law 0.0367, max|mu_G-Q_M| 0.043;  up: x_G 0.2160->0.1578, half 0.0581, law 0.0303, max|mu_G-Q_M| 0.036
+   chi_MHD =    2, dx = 0.00251, nu4 = 1.25e-04 (22 s): down: x_G 0.1577->0.2135, half 0.0927, law 0.0366, max|mu_G-Q_M| 0.063;  up: x_G 0.2135->0.1577, half 0.0595, law 0.0299, max|mu_G-Q_M| 0.076
+   chi_MHD =   20, dx = 0.00503, nu4 = 5.00e-04 (7 s): down: x_G 0.1867->0.2485, half 0.0311, law 0.0202, max|mu_G-Q_M| 0.054;  up: x_G 0.2485->0.1867, half 0.0231, law 0.0171, max|mu_G-Q_M| 0.046
+   chi_MHD =   20, dx = 0.00251, nu4 = 5.00e-04 (9 s): down: x_G 0.1836->0.2452, half 0.0303, law 0.0196, max|mu_G-Q_M| 0.036;  up: x_G 0.2452->0.1836, half 0.0230, law 0.0167, max|mu_G-Q_M| 0.027
+   chi_MHD =   20, dx = 0.00251, nu4 = 1.25e-04 (14 s): down: x_G 0.1838->0.2420, half 0.0291, law 0.0196, max|mu_G-Q_M| 0.041;  up: x_G 0.2420->0.1838, half 0.0232, law 0.0164, max|mu_G-Q_M| 0.043

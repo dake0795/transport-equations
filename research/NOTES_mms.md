@@ -99,6 +99,10 @@ $$
 The quasi-steady outer pedestal is an additional assumption, not part of the δ expansion.  Its error is the ratio of
 the pedestal diffusion time $(L-x_f)^2/\pi^2\chi_{\rm ped}$ to the front time $\tau_f$, a fourth small parameter.
 This is the 2–3× lag of Section 4.4, which a stiffer cliff halves.
+*(Correction, 25 Oct 2026, NOTES_front_lag.md: the Stefan law needs a **frozen** pedestal, $p_t=0$ at its top, and the
+lag is the pedestal's own energy. A quasi-steady pedestal adds $S(x_f)(L-x_f)/\chi_{\rm ped}$, 1–2 times $g_b-g_a$ here,
+to the latent heat and makes the front slower, not faster; its time is $(L-x_f)^2/3\chi_{\rm ped}$ (flux fixed at the
+front), not $/\pi^2$. The small parameters are that ratio and the step's change of the pedestal height, not the time ratio.)*
 
 *Order $\delta^0$ (solvability).*  $\mathcal L G_1=M_1$ with $\mathcal L=Q'(G_0)-\partial_\xi^2$ self-adjoint
 and $\mathcal L\,G_{0,\xi}=0$.  The Fredholm condition $\int G_{0,\xi}M_1\,\dd\xi=0$, with

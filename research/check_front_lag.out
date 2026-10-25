@@ -1,0 +1,37 @@
+=== check_front_lag_measured.py
+n_smooth=3 chi=   2 S 9.45->7.56: foot 0.1490->0.2057 half 0.0967; mid 0.1580->0.2151 half 0.0966
+n_smooth=3 chi=   2 S 7.56->9.45: foot 0.2057->0.1490 half 0.0594; mid 0.2151->0.1580 half 0.0595
+n_smooth=3 chi=  20 S 11.77->9.88: foot 0.1821->0.2437 half 0.0312; mid 0.1883->0.2501 half 0.0311
+n_smooth=3 chi=  20 S 9.88->11.77: foot 0.2437->0.1821 half 0.0230; mid 0.2501->0.1883 half 0.0231
+n_smooth=0 chi=   2 S 9.45->7.56: foot 0.1487->0.2061 half 0.1035; mid 0.1578->0.2157 half 0.1035
+n_smooth=0 chi=   2 S 7.56->9.45: foot 0.2061->0.1487 half 0.0589; mid 0.2157->0.1578 half 0.0589
+n_smooth=0 chi=  20 S 11.77->9.88: foot 0.1809->0.2411 half 0.0292; mid 0.1872->0.2476 half 0.0291
+n_smooth=0 chi=  20 S 9.88->11.77: foot 0.2411->0.1809 half 0.0235; mid 0.2476->0.1872 half 0.0235
+=== check_front_lag_sharp.py
+chi=   2 S 9.45->7.56: sharp(own) half PDE core 0.1028, lumped core 0.1011; relaxed x 0.1586 vs x_M 0.1586, end 0.2193 vs 0.2193; Gamma 6.022 (/[g] 1.064); eta0 +0.2538 vs [g]|dxM| 0.3433; tau_p l2/3D 0.0991, 4l2/pi2D 0.1205, l2/pi2D 0.0301; tau_f 0.0776
+chi=   2 S 7.56->9.45: sharp(own) half PDE core 0.0596, lumped core 0.0586; relaxed x 0.2193 vs x_M 0.2193, end 0.1586 vs 0.1586; Gamma 11.706 (/[g] 2.068); eta0 -0.1378 vs [g]|dxM| 0.3433; tau_p l2/3D 0.1151, 4l2/pi2D 0.1400, l2/pi2D 0.0350; tau_f 0.0310
+chi=  20 S 11.77->9.88: sharp(own) half PDE core 0.0315, lumped core 0.0290; relaxed x 0.1853 vs x_M 0.1853, end 0.2474 vs 0.2474; Gamma 0.629 (/[g] 0.219); eta0 +0.0201 vs [g]|dxM| 0.1778; tau_p l2/3D 0.0094, 4l2/pi2D 0.0115, l2/pi2D 0.0029; tau_f 0.0419
+chi=  20 S 9.88->11.77: sharp(own) half PDE core 0.0239, lumped core 0.0224; relaxed x 0.2474 vs x_M 0.2474, end 0.1853 vs 0.1853; Gamma 1.246 (/[g] 0.435); eta0 -0.0102 vs [g]|dxM| 0.1778; tau_p l2/3D 0.0110, 4l2/pi2D 0.0134, l2/pi2D 0.0034; tau_f 0.0171
+=== check_front_lag_coresource.py
+   chi 2.0: source hi: integral 9.344, min S 0.00, x_M 0.1586
+   chi 2.0: source lo_core: integral 7.544, min S 0.00, x_M 0.2375
+   chi 2.0: source lo_paper: integral 7.476, min S 0.00, x_M 0.2193
+chi=   2 core-only step DOWN: x_mid 0.1580->0.2349; measured half mid 0.0613 foot 0.0611; sharp two-phase 0.0634 (ratio 1.03); Stefan law 0.0329 (from x_M 0.0330); measured/law 1.86
+chi=   2 core-only step UP: x_mid 0.2349->0.1580; measured half mid 0.0497 foot 0.0495; sharp two-phase 0.0518 (ratio 1.04); Stefan law 0.0339 (from x_M 0.0344); measured/law 1.45
+   chi 20.0: source hi: integral 11.638, min S 0.00, x_M 0.1853
+   chi 20.0: source lo_core: integral 9.837, min S 0.00, x_M 0.2599
+   chi 20.0: source lo_paper: integral 9.770, min S 0.00, x_M 0.2474
+chi=  20 core-only step DOWN: x_mid 0.1883->0.2609; measured half mid 0.0255 foot 0.0254; sharp two-phase 0.0269 (ratio 1.06); Stefan law 0.0185 (from x_M 0.0182); measured/law 1.40
+chi=  20 core-only step UP: x_mid 0.2609->0.1883; measured half mid 0.0237 foot 0.0237; sharp two-phase 0.0245 (ratio 1.03); Stefan law 0.0183 (from x_M 0.0182); measured/law 1.30
+=== check_front_lag_pedsource.py
+chi=   2 pedestal-only +1.89: reduced x_mid 0.1580, max excursion +0.0064 at t=0.081, end +0.0000;  sharp: max excursion +0.0072 at t=0.092, end +0.0000;  Stefan law: 0
+chi=  20 pedestal-only +1.89: reduced x_mid 0.1883, max excursion +0.0036 at t=0.016, end -0.0000;  sharp: max excursion +0.0044 at t=0.018, end -0.0000;  Stefan law: 0
+=== check_front_lag_nsmooth.py
+chi    2 dx 0.00503 nu4 5.00e-04 n_smooth 3: down: x_G end 0.2172 (x_M 0.2193, off -0.0021), half 0.0966; up: x_G end 0.1603 (x_M 0.1586, off +0.0017), half 0.0598
+chi    2 dx 0.00503 nu4 5.00e-04 n_smooth 0: down: x_G end 0.2178 (x_M 0.2193, off -0.0015), half 0.1036; up: x_G end 0.1602 (x_M 0.1586, off +0.0016), half 0.0589
+chi    2 dx 0.00251 nu4 1.25e-04 n_smooth 3: down: x_G end 0.2135 (x_M 0.2166, off -0.0030), half 0.0927; up: x_G end 0.1577 (x_M 0.1567, off +0.0010), half 0.0595
+chi    2 dx 0.00251 nu4 1.25e-04 n_smooth 0: down: x_G end 0.2139 (x_M 0.2166, off -0.0027), half 0.0963; up: x_G end 0.1581 (x_M 0.1567, off +0.0014), half 0.0588
+chi   20 dx 0.00503 nu4 5.00e-04 n_smooth 3: down: x_G end 0.2485 (x_M 0.2474, off +0.0011), half 0.0311; up: x_G end 0.1867 (x_M 0.1853, off +0.0013), half 0.0231
+chi   20 dx 0.00503 nu4 5.00e-04 n_smooth 0: down: x_G end 0.2460 (x_M 0.2474, off -0.0014), half 0.0291; up: x_G end 0.1856 (x_M 0.1853, off +0.0003), half 0.0235
+chi   20 dx 0.00251 nu4 1.25e-04 n_smooth 3: down: x_G end 0.2420 (x_M 0.2441, off -0.0021), half 0.0291; up: x_G end 0.1838 (x_M 0.1832, off +0.0006), half 0.0232
+chi   20 dx 0.00251 nu4 1.25e-04 n_smooth 0: down: x_G end 0.2427 (x_M 0.2441, off -0.0013), half 0.0301; up: x_G end 0.1843 (x_M 0.1832, off +0.0011), half 0.0229
